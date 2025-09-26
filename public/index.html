@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slack Channel CSV Renamer</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 20px; }
+      header { margin-bottom: 12px; }
+      code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+      .row { display: flex; gap: 24px; flex-wrap: wrap; }
+      .card { border: 1px solid #ddd; border-radius: 6px; padding: 16px; width: 360px; }
+      .wide { width: 100%; max-width: 1000px; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { border: 1px solid #ddd; padding: 6px 8px; font-size: 12px; }
+      th { background: #fafafa; }
+      .ok { color: #0a7; }
+      .ng { color: #d33; }
+      .controls { display:flex; gap:8px; align-items:center; }
+    </style>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  </head>
+  <body>
+    <header>
+      <h2>Slack Channel CSV Renamer</h2>
+      <div id="auth"></div>
+    </header>
+
+    <div class="row">
+      <div class="card">
+        <h3>トークン状態</h3>
+        <div id="authStatus">Loading...</div>
+        <label><input type="checkbox" id="adminMode" /> Adminモードでリネーム（Org横断）</label>
+      </div>
+
+      <div class="card">
+        <h3>エクスポート</h3>
+        <div class="controls">
+          <label>types: <input id="types" value="public_channel,private_channel" style="width:200px"/></label>
+        </div>
+        <button id="btnExport">CSVダウンロード</button>
+      </div>
+
+      <div class="card wide">
+        <h3>CSVインポート → ドライラン/適用</h3>
+        <input type="file" id="csvFile" accept=".csv" />
+        <div class="controls">
+          <button id="btnDryRun">ドライラン</button>
+          <button id="btnApply">本番反映</button>
+        </div>
+        <div id="result"></div>
+      </div>
+    </div>
+
+    <script>
+      async function fetchJSON(url) {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(await r.text());
+        return r.json();
+      }
+
+      async function refreshAuth() {
+        try {
+          const s = await fetchJSON('/api/auth-status');
+          const user = s.user?.ok ? `User: OK (user=${s.user.user}, team=${s.user.team})` : 'User: 未設定';
+          const admin = s.admin?.ok ? `Admin: OK (user=${s.admin.user}, team=${s.admin.team})` : 'Admin: 未設定';
+          document.getElementById('authStatus').textContent = `${user} / ${admin}`;
+        } catch (e) {
+          document.getElementById('authStatus').textContent = 'エラー: ' + e.message;
+        }
+      }
+
+      document.getElementById('btnExport').addEventListener('click', () => {
+        const types = document.getElementById('types').value || 'public_channel,private_channel';
+        location.href = `/api/channels/export?types=${encodeURIComponent(types)}`;
+      });
+
+      function getAdminFlag() {
+        return document.getElementById('adminMode').checked;
+      }
+
+      function readCSVFile(file) {
+        return new Promise((resolve, reject) => {
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (res) => resolve(res.data),
+            error: (err) => reject(err)
+          });
+        });
+      }
+
+      async function postRows(url, rows) {
+        const r = await fetch(url + `?admin=${getAdminFlag()}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        return r.json();
+      }
+
+      async function handleDryRun() {
+        const file = document.getElementById('csvFile').files[0];
+        if (!file) return alert('CSVファイルを選択してください');
+        const rows = await readCSVFile(file);
+        const res = await postRows('/api/rename/dry-run', rows);
+        renderResult(res.plan || res.results || []);
+      }
+
+      async function handleApply() {
+        const file = document.getElementById('csvFile').files[0];
+        if (!file) return alert('CSVファイルを選択してください');
+        if (!confirm('実行しますか？')) return;
+        const rows = await readCSVFile(file);
+        const res = await postRows('/api/rename/apply', rows);
+        renderResult(res.results || []);
+        if (res.logs) {
+          const div = document.createElement('div');
+          div.textContent = `ログ: ${res.logs.logPath} / ${res.logs.jsonlPath}`;
+          document.getElementById('result').prepend(div);
+        }
+      }
+
+      function renderResult(items) {
+        const resultEl = document.getElementById('result');
+        if (!items.length) { resultEl.textContent = '結果なし'; return; }
+        const headers = Object.keys(items[0]);
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const thr = document.createElement('tr');
+        headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; thr.appendChild(th); });
+        thead.appendChild(thr); table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        items.forEach(row => {
+          const tr = document.createElement('tr');
+          headers.forEach(h => { const td = document.createElement('td'); td.textContent = row[h]; tr.appendChild(td); });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        resultEl.innerHTML = '';
+        resultEl.appendChild(table);
+      }
+
+      document.getElementById('btnDryRun').addEventListener('click', () => handleDryRun().catch(e => alert(e.message)));
+      document.getElementById('btnApply').addEventListener('click', () => handleApply().catch(e => alert(e.message)));
+
+      refreshAuth();
+    </script>
+  </body>
+  </html>
+

@@ -1,7 +1,7 @@
 # Slack Channel CSV Renamer
 
-Slack のチャンネル一覧を **CSV 形式でエクスポート／編集／インポート更新** できる CLI ツールです。  
-リネーム操作は **ドライラン → 承認 → 本番反映** の流れで、安全に実施できます。
+Slack のチャンネル一覧を **CSV 形式でエクスポート／編集／インポート更新** できるツールです。  
+ブラウザUIから操作（CSVエクスポート/アップロード、ドライラン/本番反映）が可能で、CLIなしでも運用できます。
 
 ## 特徴
 - 全チャンネルを CSV で出力（`channel_id,current_name,new_name,notes`）
@@ -18,45 +18,42 @@ Slack のチャンネル一覧を **CSV 形式でエクスポート／編集／�
   - Workspace 単体: `SLACK_USER_TOKEN`  
   - Enterprise Grid 全社横断: `SLACK_ADMIN_TOKEN`
 
-## インストール
+## セットアップ（ローカルUI）
 ```bash
-git clone <repo>
-cd slack-channel-csv-renamer
+git clone git@github.com:jkear1120/slack-renamer.git
+cd slack-renamer
 npm install
-````
+```
+
+### トークン設定（どちらか／両方）
+- Workspace 単体: `SLACK_USER_TOKEN`（例: `xoxp-...`）
+- Enterprise Grid 全社横断: `SLACK_ADMIN_TOKEN`（例: `xoxe-...`）
+
+起動例:
+```bash
+# Workspaceトークンのみ
+SLACK_USER_TOKEN=xoxp-*** npm start
+
+# Adminトークン併用（Org横断リネームが可能）
+SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
+```
+
+ブラウザで `http://localhost:3000` を開きます。
 
 ---
 
-## 使い方
-
-### 1. チャンネル一覧を CSV エクスポート
-
-```bash
-SLACK_USER_TOKEN=xoxp-*** npm run export -- --types public_channel,private_channel --out ./channels_export.csv
-```
-
-→ `channels_export.csv` が生成されます。
-
-### 2. CSV を編集
-
-* 列は `channel_id,current_name,new_name,notes` のまま固定
-* `new_name` に変更後のチャンネル名を入力（空欄はスキップ）
-
-### 3. ドライラン（計画のみ出力）
-
-```bash
-SLACK_USER_TOKEN=xoxp-*** npm run import -- --csv ./channels_export.csv
-```
-
-### 4. 本番反映
-
-```bash
-# Workspace の場合
-SLACK_USER_TOKEN=xoxp-*** npm run import -- --csv ./channels_export.csv --apply
-
-# Enterprise Grid の場合
-SLACK_ADMIN_TOKEN=xoxe-*** npm run import -- --csv ./channels_export.csv --apply --admin
-```
+## 使い方（ブラウザUI）
+1. 画面上部の「トークン状態」を確認（User/Adminどちらが有効か）
+2. エクスポート
+   - types（`public_channel,private_channel` など）を指定して「CSVダウンロード」
+3. CSV編集
+   - 列は `channel_id,current_name,new_name,notes` 固定
+   - `new_name` に希望名を記入（空欄はスキップ扱い）
+4. インポート＆ドライラン
+   - 「CSVインポート」→「ドライラン」で計画・検証
+5. 本番反映
+   - 問題なければ「本番反映」
+   - Adminモード（チェックON）で `admin.conversations.rename` を使用
 
 ---
 
@@ -74,6 +71,11 @@ SLACK_ADMIN_TOKEN=xoxe-*** npm run import -- --csv ./channels_export.csv --apply
 
   * **Workspace**: チャンネル作成者 / Workspace Admin / Channel Manager
   * **Enterprise Grid**: Org Admin が `admin.conversations.rename` を利用
+
+必要なOAuthスコープの例:
+- エクスポート: `channels:read`, `groups:read`（Conversations APIの実質権限）
+- リネーム（Workspace）: `channels:manage`（public）, `groups:write`（private）
+- リネーム（Admin）: `admin.conversations:write` と Org 管理者権限
 
 ---
 
