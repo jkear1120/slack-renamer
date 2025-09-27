@@ -7,6 +7,7 @@ class RunLogger {
     const logsDir = path.join(process.cwd(), 'logs');
     if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
     const id = `${Date.now()}_${nanoid(6)}`;
+    this.id = id;
     this.jsonlPath = path.join(logsDir, `run-${id}.jsonl`);
     this.logPath = path.join(logsDir, `run-${id}.log`);
     this.jsonlStream = fs.createWriteStream(this.jsonlPath, { flags: 'a' });
@@ -33,9 +34,8 @@ class RunLogger {
   close() {
     this.jsonlStream.end();
     this.logStream.end();
-    return { jsonlPath: this.jsonlPath, logPath: this.logPath };
+    return { id: this.id, jsonlPath: this.jsonlPath, logPath: this.logPath };
   }
 }
 
 module.exports = { RunLogger };
-

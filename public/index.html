@@ -47,6 +47,7 @@
       table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
       thead th { position: sticky; top: 0; background: #0b1220; z-index: 1; }
       th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
+      .archived-row { background: rgba(244,63,94,.08); }
       .chip { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--border); }
       .chip.ok { background: rgba(16,185,129,.1); color: #34d399; }
       .chip.warn { background: rgba(245,158,11,.1); color: #fbbf24; }
@@ -213,6 +214,9 @@
         const tbody = document.createElement('tbody');
         items.forEach(row => {
           const tr = document.createElement('tr');
+          if (mode === 'preview' && (row.archived === 'archived' || row.archived === true)) {
+            tr.classList.add('archived-row');
+          }
           cols.forEach(h => {
             const td = document.createElement('td');
             let v = row[h];
@@ -258,6 +262,39 @@
       finalConfirm.addEventListener('change', () => {
         btnApply.disabled = !finalConfirm.checked;
       });
+
+      // Revert last batch
+      let lastBatchId = null;
+      async function handleApply() {
+        const file = document.getElementById('csvFile').files[0];
+        if (!file) return alert('CSVファイルを選択してください');
+        if (!document.getElementById('finalConfirm').checked) {
+          return alert('本番反映には「最終確認しました」にチェックが必要です。');
+        }
+        const rows = await readCSVFile(file);
+        const res = await postRows('/api/rename/apply', rows);
+        lastBatchId = res.batchId || null;
+        renderResult(res.results || [], { title: '適用結果', mode: 'apply' });
+        if (res.logs) {
+          const div = document.createElement('div');
+          div.textContent = `ログ: ${res.logs.logPath} / ${res.logs.jsonlPath}`;
+          document.getElementById('result').prepend(div);
+        }
+        if (lastBatchId) {
+          const btn = document.createElement('button');
+          btn.textContent = '変更前に戻す';
+          btn.className = 'btn secondary';
+          btn.style.marginTop = '8px';
+          btn.onclick = async () => {
+            if (!confirm('直前の一括更新を元に戻します。よろしいですか？')) return;
+            const r = await fetch(`/api/rename/revert?batch_id=${encodeURIComponent(lastBatchId)}`, { method: 'POST' });
+            if (!r.ok) return alert(await r.text());
+            const data = await r.json();
+            renderResult(data.results || [], { title: '元に戻した結果', mode: 'apply' });
+          };
+          document.getElementById('result').appendChild(btn);
+        }
+      }
     </script>
   </body>
   </html>

@@ -121,6 +121,7 @@ app.post('/api/rename/apply', upload.single('file'), async (req, res) => {
     if (!rows.length) return res.status(400).json({ error: 'No rows provided' });
 
     const results = [];
+    const revertItems = [];
     for (const r of rows) {
       const channelId = String(r.channel_id || '').trim();
       const current = String(r.current_name || '').trim();
@@ -154,6 +155,7 @@ app.post('/api/rename/apply', upload.single('file'), async (req, res) => {
         const item = { channel_id: channelId, from: current, to: normalized, status: 'renamed', ts: Date.now(), api_result: resp.ok === true, notes };
         results.push(item);
         logger.jsonl(item);
+        revertItems.push({ channel_id: channelId, from: current, to: normalized });
       } catch (err) {
         const item = { channel_id: channelId, from: current, to: normalized, status: 'error', error: err.message, notes };
         results.push(item);
@@ -161,13 +163,57 @@ app.post('/api/rename/apply', upload.single('file'), async (req, res) => {
       }
     }
 
+    // 保存: 元に戻す用メタ
+    try {
+      const revertMeta = { batchId: logger.id, admin, createdAt: Date.now(), items: revertItems };
+      const revertPath = require('path').join(process.cwd(), 'logs', `revert-${logger.id}.json`);
+      require('fs').writeFileSync(revertPath, JSON.stringify(revertMeta, null, 2));
+    } catch (e) {
+      logger.jsonl({ status: 'warn', warn: 'failed_to_write_revert_meta', error: e.message });
+    }
+
     logger.humanSummary(results);
-    const { jsonlPath, logPath } = logger.close();
-    res.json({ admin, applied: true, count: results.length, results, logs: { jsonlPath, logPath } });
+    const { id, jsonlPath, logPath } = logger.close();
+    res.json({ admin, applied: true, batchId: id, count: results.length, results, logs: { jsonlPath, logPath } });
   } catch (e) {
     logger.jsonl({ status: 'fatal', error: e.message });
-    const { jsonlPath, logPath } = logger.close();
-    res.status(500).json({ error: e.message, logs: { jsonlPath, logPath } });
+    const { id, jsonlPath, logPath } = logger.close();
+    res.status(500).json({ error: e.message, batchId: id, logs: { jsonlPath, logPath } });
+  }
+});
+
+// Revert last apply by batchId
+app.post('/api/rename/revert', async (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const logger = new RunLogger({ dryRun: false });
+  try {
+    const batchId = String(req.query.batch_id || req.body?.batch_id || '').trim();
+    if (!batchId) return res.status(400).json({ error: 'batch_id is required' });
+    const revertPath = path.join(process.cwd(), 'logs', `revert-${batchId}.json`);
+    if (!fs.existsSync(revertPath)) return res.status(404).json({ error: 'revert batch not found' });
+    const meta = JSON.parse(fs.readFileSync(revertPath, 'utf-8'));
+    const admin = meta.admin === true;
+
+    const results = [];
+    for (const it of meta.items) {
+      try {
+        const resp = await slack.renameChannel({ channelId: it.channel_id, name: it.from, admin });
+        const item = { channel_id: it.channel_id, from: it.to, to: it.from, status: 'reverted', api_result: resp.ok === true, ts: Date.now() };
+        results.push(item);
+        logger.jsonl(item);
+      } catch (err) {
+        const item = { channel_id: it.channel_id, from: it.to, to: it.from, status: 'error', error: err.message };
+        results.push(item);
+        logger.jsonl(item);
+      }
+    }
+
+    const { id, jsonlPath, logPath } = logger.close();
+    res.json({ reverted: true, sourceBatchId: batchId, revertBatchId: id, count: results.length, results, logs: { jsonlPath, logPath } });
+  } catch (e) {
+    const { id, jsonlPath, logPath } = logger.close();
+    res.status(500).json({ error: e.message, revertBatchId: id, logs: { jsonlPath, logPath } });
   }
 });
 
