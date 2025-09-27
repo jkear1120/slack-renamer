@@ -43,10 +43,11 @@ app.get('/api/channels/export', async (req, res) => {
     const records = channels.map((c) => ({
       channel_id: c.id,
       current_name: c.name,
+      channel_type: c.is_private ? 'private' : 'public',
       new_name: '',
-      notes: '',
+      NOTE: '',
     }));
-    const csv = stringify(records, { header: true, columns: ['channel_id', 'current_name', 'new_name', 'notes'] });
+    const csv = stringify(records, { header: true, columns: ['channel_id', 'current_name', 'channel_type', 'new_name', 'NOTE'] });
     const filename = `channels_export_${Date.now()}.csv`;
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
@@ -75,7 +76,7 @@ app.post('/api/rename/dry-run', upload.single('file'), async (req, res) => {
       const channelId = String(r.channel_id || '').trim();
       const current = String(r.current_name || '').trim();
       const requested = String(r.new_name || '').trim();
-      const notes = r.notes || '';
+      const notes = r.NOTE || r.notes || '';
 
       if (!channelId || !requested) {
         plan.push({ channel_id: channelId, current_name: current, requested_name: requested, status: 'skipped', reason: 'missing_channel_id_or_new_name', notes });
@@ -122,7 +123,7 @@ app.post('/api/rename/apply', upload.single('file'), async (req, res) => {
       const channelId = String(r.channel_id || '').trim();
       const current = String(r.current_name || '').trim();
       const requested = String(r.new_name || '').trim();
-      const notes = r.notes || '';
+      const notes = r.NOTE || r.notes || '';
       if (!channelId || !requested) {
         const item = { channel_id: channelId, current_name: current, requested_name: requested, status: 'skipped', reason: 'missing_channel_id_or_new_name', notes };
         results.push(item);
@@ -174,4 +175,3 @@ app.listen(PORT, () => {
   const url = `http://localhost:${PORT}`;
   console.log(`Slack Renamer UI running at ${url}`);
 });
-
