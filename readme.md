@@ -1,13 +1,13 @@
 # Slack Channel CSV Renamer
 
 Slack のチャンネル一覧を **CSV 形式でエクスポート／編集／インポート更新** できるツールです。  
-ブラウザUIから操作（CSVエクスポート/アップロード、ドライラン/本番反映）が可能で、CLIなしでも運用できます。
+ブラウザUIから操作（CSVエクスポート/アップロード、プレビュー/本番反映）が可能で、CLIなしでも運用できます。
 
 ## 特徴
-- 全チャンネルを CSV で出力（`channel_id,current_name,new_name,notes`）
-- CSV 編集後、`new_name` 列に入力された名前で一括リネーム
-- Slack の命名制約（小文字/数字/ハイフン/アンダースコア、80 文字以内）を自動正規化・検証
-- **ドライラン**で確認 → **本番反映**で適用
+- 全チャンネルを CSV で出力（`channel_id,current_name,channel_type,archived,new_name,NOTE`）
+- CSV 編集後、`new_name` 列で一括リネーム（`NOTE` は任意メモ）
+- Slack の命名制約（Unicode文字/数字/ハイフン/アンダースコア、80 文字以内・先頭は文字/数字）を自動正規化・検証
+- **プレビュー**で確認 → **本番反映**で適用
 - 実行ログを `logs/` に保存（人間可読 `.log` と機械可読 `.jsonl`）
 
 ---
@@ -49,10 +49,9 @@ SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
    - オプション「アーカイブも含める」を必要に応じてON
    - 「CSVダウンロード」で取得
 3. CSV編集
-   - 列は `channel_id,current_name,new_name,notes` 固定
-   - `new_name` に希望名を記入（空欄はスキップ扱い）
-4. インポート＆ドライラン
-   - 「CSVインポート」→「ドライラン」で計画・検証
+   - エクスポートCSVを編集（`new_name` を記入、`NOTE` は任意）
+4. インポート＆プレビュー
+   - 「CSVインポート」→「プレビュー」で計画・検証（適用は行いません）
 5. 本番反映
    - 問題なければ「本番反映」
    - Adminモード（チェックON）で `admin.conversations.rename` を使用

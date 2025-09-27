@@ -21,7 +21,7 @@
 
 ```
 package.json          依存・スクリプト
-public/index.html     UI（CSVダウンロード、アップロード、ドライラン/適用）
+public/index.html     UI（CSVダウンロード、アップロード、プレビュー/適用）
 src/server.js         Expressルート（API, 静的配信）
 src/slack.js          Slack APIクライアント（一覧/リネーム）
 src/validation.js     名前正規化/検証ロジック
@@ -38,7 +38,7 @@ logs/                 実行ログ（Git管理外）
 - `GET /api/channels/export?types=public_channel,private_channel&include_archived=true|false`
   - Slack `conversations.list` を全ページング
   - CSVをダウンロード（列は上記順）
-- `POST /api/rename/dry-run`（`Content-Type: application/json` または `multipart/form-data`）
+- `POST /api/rename/dry-run`（UI上の名称: プレビュー、`Content-Type: application/json` または `multipart/form-data`）
   - 入力: `rows: [{channel_id,current_name,new_name,NOTE?}]` もしくは `file`（CSV）
   - 戻り値: `{ plan: [{ status: will_rename|invalid|noop|skipped, ... }] }`
 - `POST /api/rename/apply`（同上）
@@ -93,14 +93,14 @@ logs/                 実行ログ（Git管理外）
 1. トークン設定後、`npm start` → ブラウザで `http://localhost:3000`
 2. エクスポート（必要なら「アーカイブも含める」をON）
 3. CSV編集（`new_name` と任意 `NOTE`）
-4. ドライランで差分確認（`invalid`/`noop`/`will_rename`）
+4. プレビューで差分確認（`invalid`/`noop`/`will_rename`）
 5. 本番反映（結果は画面と `logs/` に出力）
 
 ---
 
 ## 拡張案
 
-- ドライラン結果のUIに `archived` 表示/フィルタを追加
+- プレビュー結果のUIに `archived` 表示/フィルタを追加
 - 名前重複（`name_taken`）時の自動suffix付与、重複検出プレビュー
 - Undo計画（旧名へのロールバックCSV生成）
 - Sheets/Notion 連携、SAML属性からの命名規則自動生成

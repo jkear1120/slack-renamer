@@ -5,51 +5,98 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Slack Channel CSV Renamer</title>
     <style>
-      body { font-family: system-ui, sans-serif; margin: 20px; }
-      header { margin-bottom: 12px; }
-      code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
-      .row { display: flex; gap: 24px; flex-wrap: wrap; }
-      .card { border: 1px solid #ddd; border-radius: 6px; padding: 16px; width: 360px; }
-      .wide { width: 100%; max-width: 1000px; }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { border: 1px solid #ddd; padding: 6px 8px; font-size: 12px; }
-      th { background: #fafafa; }
-      .ok { color: #0a7; }
-      .ng { color: #d33; }
-      .controls { display:flex; gap:8px; align-items:center; }
+      :root {
+        --bg: #0f172a; /* slate-900 */
+        --panel: #111827ee; /* gray-900 w/alpha */
+        --text: #e5e7eb; /* gray-200 */
+        --muted: #9ca3af; /* gray-400 */
+        --brand: #6366f1; /* indigo-500 */
+        --brand-2: #22d3ee; /* cyan-400 */
+        --ok: #10b981; /* emerald-500 */
+        --warn: #f59e0b; /* amber-500 */
+        --err: #ef4444; /* red-500 */
+        --border: #1f2937; /* gray-800 */
+      }
+      body {
+        margin: 0; padding: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        color: var(--text);
+        background:
+          radial-gradient(60% 120% at 0% 0%, rgba(99,102,241,.25), transparent 60%),
+          radial-gradient(80% 140% at 100% 0%, rgba(34,211,238,.2), transparent 60%),
+          var(--bg);
+        min-height: 100vh;
+      }
+      header {
+        padding: 24px 24px 12px 24px;
+        display:flex; justify-content: space-between; align-items: center;
+      }
+      h2 { margin: 0; font-weight: 650; letter-spacing: .2px; }
+      .sub { color: var(--muted); font-size: 12px; }
+      .container { padding: 0 24px 32px 24px; }
+      .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; backdrop-filter: blur(6px); }
+      .wide { grid-column: 1 / -1; }
+      .controls { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
+      label { font-size: 13px; color: var(--text); }
+      input[type="text"], input[type="file"] { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 8px; }
+      .btn { border: 1px solid var(--border); color: white; background: linear-gradient(135deg, var(--brand), var(--brand-2)); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 8px 24px rgba(99,102,241,.25); }
+      .btn.secondary { background: transparent; color: var(--text); border-color: #334155; }
+      .btn:disabled { opacity: .6; cursor: not-allowed; }
+      .kpi { font-variant-numeric: tabular-nums; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+      thead th { position: sticky; top: 0; background: #0b1220; z-index: 1; }
+      th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
+      .chip { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--border); }
+      .chip.ok { background: rgba(16,185,129,.1); color: #34d399; }
+      .chip.warn { background: rgba(245,158,11,.1); color: #fbbf24; }
+      .chip.err { background: rgba(239,68,68,.1); color: #f87171; }
+      .row-gap { height: 6px; }
+      .toggle { display:flex; align-items:center; gap:8px; color: var(--muted); }
+      .muted { color: var(--muted); font-size: 12px; }
+      .header-actions { display:flex; gap:10px; align-items:center; }
     </style>
     <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   </head>
   <body>
     <header>
-      <h2>Slack Channel CSV Renamer</h2>
-      <div id="auth"></div>
+      <div>
+        <h2>Slack Channel CSV Renamer</h2>
+        <div class="sub">CSVで編集して、一括でチャンネル名を更新</div>
+      </div>
+      <div class="header-actions">
+        <label class="toggle"><input type="checkbox" id="adminMode" /> Adminモード</label>
+        <label class="toggle"><input type="checkbox" id="themeToggle" /> ダークモード</label>
+      </div>
     </header>
 
-    <div class="row">
-      <div class="card">
-        <h3>トークン状態</h3>
-        <div id="authStatus">Loading...</div>
-        <label><input type="checkbox" id="adminMode" /> Adminモードでリネーム（Org横断）</label>
-      </div>
-
-      <div class="card">
-        <h3>エクスポート</h3>
-        <div class="controls">
-          <label>types: <input id="types" value="public_channel,private_channel" style="width:200px"/></label>
+    <div class="container">
+      <div class="row">
+        <div class="card">
+          <h3 style="margin-top:0">トークン状態</h3>
+          <div id="authStatus" class="muted">Loading...</div>
         </div>
-        <label><input type="checkbox" id="includeArchived" /> アーカイブも含める</label>
-        <div style="margin-top:8px;"><button id="btnExport">CSVダウンロード</button></div>
-      </div>
 
-      <div class="card wide">
-        <h3>CSVインポート → ドライラン/適用</h3>
-        <input type="file" id="csvFile" accept=".csv" />
-        <div class="controls">
-          <button id="btnDryRun">ドライラン</button>
-          <button id="btnApply">本番反映</button>
+        <div class="card">
+          <h3 style="margin-top:0">エクスポート</h3>
+          <div class="controls">
+            <label>types: <input id="types" value="public_channel,private_channel" style="width:220px"/></label>
+          </div>
+          <label class="toggle"><input type="checkbox" id="includeArchived" /> アーカイブも含める</label>
+          <div style="margin-top:8px;"><button class="btn" id="btnExport">CSVダウンロード</button></div>
         </div>
-        <div id="result"></div>
+
+        <div class="card wide">
+          <h3 style="margin-top:0">CSVインポート → プレビュー/適用</h3>
+          <div class="muted">`new_name` 列に変更後の名前を入れてください。`NOTE` は任意です。</div>
+          <div class="row-gap"></div>
+          <input type="file" id="csvFile" accept=".csv" />
+          <div class="controls" style="margin-top:8px;">
+            <button class="btn secondary" id="btnPreview">プレビュー</button>
+            <button class="btn" id="btnApply">本番反映</button>
+          </div>
+          <div id="result"></div>
+        </div>
       </div>
     </div>
 
@@ -103,21 +150,21 @@
         return r.json();
       }
 
-      async function handleDryRun() {
+      async function handlePreview() {
         const file = document.getElementById('csvFile').files[0];
         if (!file) return alert('CSVファイルを選択してください');
         const rows = await readCSVFile(file);
         const res = await postRows('/api/rename/dry-run', rows);
-        renderResult(res.plan || res.results || []);
+        renderResult(res.plan || res.results || [], { title: 'プレビュー結果' });
       }
 
       async function handleApply() {
         const file = document.getElementById('csvFile').files[0];
         if (!file) return alert('CSVファイルを選択してください');
-        if (!confirm('実行しますか？')) return;
+        if (!confirm('本番反映を実行します。よろしいですか？')) return;
         const rows = await readCSVFile(file);
         const res = await postRows('/api/rename/apply', rows);
-        renderResult(res.results || []);
+        renderResult(res.results || [], { title: '適用結果' });
         if (res.logs) {
           const div = document.createElement('div');
           div.textContent = `ログ: ${res.logs.logPath} / ${res.logs.jsonlPath}`;
@@ -125,9 +172,10 @@
         }
       }
 
-      function renderResult(items) {
+      function renderResult(items, opts = {}) {
         const resultEl = document.getElementById('result');
         if (!items.length) { resultEl.textContent = '結果なし'; return; }
+        const title = opts.title || '結果';
         const headers = Object.keys(items[0]);
         const table = document.createElement('table');
         const thead = document.createElement('thead');
@@ -142,13 +190,31 @@
         });
         table.appendChild(tbody);
         resultEl.innerHTML = '';
+        const h = document.createElement('div');
+        h.textContent = title;
+        h.style.marginTop = '12px';
+        h.style.fontWeight = '600';
+        resultEl.appendChild(h);
         resultEl.appendChild(table);
       }
 
-      document.getElementById('btnDryRun').addEventListener('click', () => handleDryRun().catch(e => alert(e.message)));
+      document.getElementById('btnPreview').addEventListener('click', () => handlePreview().catch(e => alert(e.message)));
       document.getElementById('btnApply').addEventListener('click', () => handleApply().catch(e => alert(e.message)));
 
       refreshAuth();
+
+      // Theme toggle (persist)
+      const themeToggle = document.getElementById('themeToggle');
+      try {
+        const saved = localStorage.getItem('theme:dark') === 'true';
+        themeToggle.checked = saved;
+        document.body.dataset.dark = saved ? '1' : '';
+      } catch {}
+      themeToggle.addEventListener('change', () => {
+        const v = themeToggle.checked;
+        document.body.dataset.dark = v ? '1' : '';
+        try { localStorage.setItem('theme:dark', String(v)); } catch {}
+      });
     </script>
   </body>
   </html>
