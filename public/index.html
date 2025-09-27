@@ -38,7 +38,8 @@
         <div class="controls">
           <label>types: <input id="types" value="public_channel,private_channel" style="width:200px"/></label>
         </div>
-        <button id="btnExport">CSVダウンロード</button>
+        <label><input type="checkbox" id="includeArchived" /> アーカイブも含める</label>
+        <div style="margin-top:8px;"><button id="btnExport">CSVダウンロード</button></div>
       </div>
 
       <div class="card wide">
@@ -72,7 +73,9 @@
 
       document.getElementById('btnExport').addEventListener('click', () => {
         const types = document.getElementById('types').value || 'public_channel,private_channel';
-        location.href = `/api/channels/export?types=${encodeURIComponent(types)}`;
+        const includeArchived = document.getElementById('includeArchived').checked;
+        const q = new URLSearchParams({ types, include_archived: includeArchived ? 'true' : 'false' }).toString();
+        location.href = `/api/channels/export?${q}`;
       });
 
       function getAdminFlag() {
@@ -149,4 +152,3 @@
     </script>
   </body>
   </html>
-

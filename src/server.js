@@ -39,15 +39,17 @@ app.get('/api/auth-status', async (req, res) => {
 app.get('/api/channels/export', async (req, res) => {
   try {
     const types = String(req.query.types || 'public_channel,private_channel');
-    const channels = await slack.listAllChannels({ types });
+    const includeArchived = String(req.query.include_archived || 'false') === 'true';
+    const channels = await slack.listAllChannels({ types, includeArchived });
     const records = channels.map((c) => ({
       channel_id: c.id,
       current_name: c.name,
       channel_type: c.is_private ? 'private' : 'public',
+      archived: c.is_archived ? 'archived' : 'active',
       new_name: '',
       NOTE: '',
     }));
-    const csv = stringify(records, { header: true, columns: ['channel_id', 'current_name', 'channel_type', 'new_name', 'NOTE'] });
+    const csv = stringify(records, { header: true, columns: ['channel_id', 'current_name', 'channel_type', 'archived', 'new_name', 'NOTE'] });
     const filename = `channels_export_${Date.now()}.csv`;
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=${filename}`);

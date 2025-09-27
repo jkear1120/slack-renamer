@@ -45,7 +45,9 @@ SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
 ## 使い方（ブラウザUI）
 1. 画面上部の「トークン状態」を確認（User/Adminどちらが有効か）
 2. エクスポート
-   - types（`public_channel,private_channel` など）を指定して「CSVダウンロード」
+   - types（`public_channel,private_channel` など）を指定
+   - オプション「アーカイブも含める」を必要に応じてON
+   - 「CSVダウンロード」で取得
 3. CSV編集
    - 列は `channel_id,current_name,new_name,notes` 固定
    - `new_name` に希望名を記入（空欄はスキップ扱い）
@@ -56,6 +58,14 @@ SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
    - Adminモード（チェックON）で `admin.conversations.rename` を使用
 
 ---
+
+## CSV列構成（エクスポート）
+
+`channel_id,current_name,channel_type,archived,new_name,NOTE`
+
+- `channel_type`: `public` | `private`
+- `archived`: `active` | `archived`
+- `NOTE`: 任意メモ（最右列）
 
 ## ログ出力
 

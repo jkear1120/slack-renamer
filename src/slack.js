@@ -15,12 +15,17 @@ class SlackService {
     return r;
   }
 
-  async listAllChannels({ types = 'public_channel,private_channel', limit = 1000 }) {
+  async listAllChannels({ types = 'public_channel,private_channel', limit = 1000, includeArchived = false }) {
     if (!this.userClient) throw new Error('SLACK_USER_TOKEN is not set');
     const channels = [];
     let cursor;
     do {
-      const resp = await this.userClient.conversations.list({ types, limit: 1000, cursor });
+      const resp = await this.userClient.conversations.list({
+        types,
+        limit: 1000,
+        cursor,
+        exclude_archived: !includeArchived,
+      });
       channels.push(...(resp.channels || []));
       cursor = resp.response_metadata?.next_cursor;
     } while (cursor);
@@ -42,4 +47,3 @@ class SlackService {
 }
 
 module.exports = { SlackService };
-
