@@ -67,6 +67,10 @@ SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
 - `archived`: `active` | `archived`
 - `NOTE`: 任意メモ（最右列）
 
+インポート時の注意:
+- `archived` 列は読み込み時に無視されます（表示用途のみ）
+- `NOTE` は任意。列名が `NOTE` または `notes` のどちらでも読み込めます
+
 ## ログ出力
 
 * `logs/run-*.log` … 人間可読
