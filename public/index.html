@@ -6,24 +6,24 @@
     <title>Slack Channel CSV Renamer</title>
     <style>
       :root {
-        --bg: #0f172a; /* slate-900 */
-        --panel: #111827ee; /* gray-900 w/alpha */
-        --text: #e5e7eb; /* gray-200 */
-        --muted: #9ca3af; /* gray-400 */
-        --brand: #6366f1; /* indigo-500 */
-        --brand-2: #22d3ee; /* cyan-400 */
+        --bg: #17130f; /* warm dark */
+        --panel: #1f1a14ee; /* warm dark panel */
+        --text: #f3f4f6; /* light text */
+        --muted: #cbd5e1; /* muted */
+        --brand: #f59e0b; /* amber-500 */
+        --brand-2: #f43f5e; /* rose-500 */
         --ok: #10b981; /* emerald-500 */
         --warn: #f59e0b; /* amber-500 */
         --err: #ef4444; /* red-500 */
-        --border: #1f2937; /* gray-800 */
+        --border: #3f2f21; /* warm border */
       }
       body {
         margin: 0; padding: 0;
         font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
         color: var(--text);
         background:
-          radial-gradient(60% 120% at 0% 0%, rgba(99,102,241,.25), transparent 60%),
-          radial-gradient(80% 140% at 100% 0%, rgba(34,211,238,.2), transparent 60%),
+          radial-gradient(60% 120% at 0% 0%, rgba(245,158,11,.25), transparent 60%),
+          radial-gradient(80% 140% at 100% 0%, rgba(244,63,94,.22), transparent 60%),
           var(--bg);
         min-height: 100vh;
       }
@@ -40,7 +40,7 @@
       .controls { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
       label { font-size: 13px; color: var(--text); }
       input[type="text"], input[type="file"] { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 8px; }
-      .btn { border: 1px solid var(--border); color: white; background: linear-gradient(135deg, var(--brand), var(--brand-2)); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 8px 24px rgba(99,102,241,.25); }
+      .btn { border: 1px solid var(--border); color: white; background: linear-gradient(135deg, var(--brand), var(--brand-2)); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 8px 24px rgba(245,158,11,.25); }
       .btn.secondary { background: transparent; color: var(--text); border-color: #334155; }
       .btn:disabled { opacity: .6; cursor: not-allowed; }
       .kpi { font-variant-numeric: tabular-nums; }
@@ -93,7 +93,8 @@
           <input type="file" id="csvFile" accept=".csv" />
           <div class="controls" style="margin-top:8px;">
             <button class="btn secondary" id="btnPreview">プレビュー</button>
-            <button class="btn" id="btnApply">本番反映</button>
+            <label class="toggle"><input type="checkbox" id="finalConfirm" /> 最終確認しました</label>
+            <button class="btn" id="btnApply" disabled>本番反映</button>
           </div>
           <div id="result"></div>
         </div>
@@ -161,10 +162,12 @@
       async function handleApply() {
         const file = document.getElementById('csvFile').files[0];
         if (!file) return alert('CSVファイルを選択してください');
-        if (!confirm('本番反映を実行します。よろしいですか？')) return;
+        if (!document.getElementById('finalConfirm').checked) {
+          return alert('本番反映には「最終確認しました」にチェックが必要です。');
+        }
         const rows = await readCSVFile(file);
         const res = await postRows('/api/rename/apply', rows);
-        renderResult(res.results || [], { title: '適用結果' });
+        renderResult(res.results || [], { title: '適用結果', mode: 'apply' });
         if (res.logs) {
           const div = document.createElement('div');
           div.textContent = `ログ: ${res.logs.logPath} / ${res.logs.jsonlPath}`;
@@ -176,16 +179,49 @@
         const resultEl = document.getElementById('result');
         if (!items.length) { resultEl.textContent = '結果なし'; return; }
         const title = opts.title || '結果';
-        const headers = Object.keys(items[0]);
+        const mode = opts.mode || 'preview';
+        // 列定義（存在する列のみ表示）
+        const jpMap = {
+          channel_id: 'チャンネルID',
+          current_name: '現在名',
+          requested_name: '希望名',
+          normalized_name: '正規化後',
+          status: 'ステータス',
+          reason: '理由',
+          notes: 'メモ',
+          NOTE: 'メモ',
+          channel_type: '種別',
+          archived: 'アーカイブ',
+          from: '変更前',
+          to: '変更後',
+          api_result: 'API結果',
+          error: 'エラー',
+          ts: '時刻'
+        };
+        const prefCols = mode === 'apply'
+          ? ['channel_id','from','to','status','error','api_result','notes']
+          : ['channel_id','current_name','requested_name','normalized_name','status','reason','notes'];
+        const sample = items[0];
+        const dynamicExtras = Object.keys(sample).filter(k => !prefCols.includes(k));
+        const cols = [...prefCols.filter(k => k in sample), ...dynamicExtras];
+
         const table = document.createElement('table');
         const thead = document.createElement('thead');
         const thr = document.createElement('tr');
-        headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; thr.appendChild(th); });
+        cols.forEach(h => { const th = document.createElement('th'); th.textContent = jpMap[h] || h; thr.appendChild(th); });
         thead.appendChild(thr); table.appendChild(thead);
         const tbody = document.createElement('tbody');
         items.forEach(row => {
           const tr = document.createElement('tr');
-          headers.forEach(h => { const td = document.createElement('td'); td.textContent = row[h]; tr.appendChild(td); });
+          cols.forEach(h => {
+            const td = document.createElement('td');
+            let v = row[h];
+            if (h === 'ts' && v) {
+              try { v = new Date(v).toLocaleString(); } catch {}
+            }
+            td.textContent = v;
+            tr.appendChild(td);
+          });
           tbody.appendChild(tr);
         });
         table.appendChild(tbody);
@@ -214,6 +250,13 @@
         const v = themeToggle.checked;
         document.body.dataset.dark = v ? '1' : '';
         try { localStorage.setItem('theme:dark', String(v)); } catch {}
+      });
+
+      // 最終確認チェックで有効化
+      const finalConfirm = document.getElementById('finalConfirm');
+      const btnApply = document.getElementById('btnApply');
+      finalConfirm.addEventListener('change', () => {
+        btnApply.disabled = !finalConfirm.checked;
       });
     </script>
   </body>

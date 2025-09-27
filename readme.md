@@ -53,7 +53,7 @@ SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
 4. インポート＆プレビュー
    - 「CSVインポート」→「プレビュー」で計画・検証（適用は行いません）
 5. 本番反映
-   - 問題なければ「本番反映」
+   - 「最終確認しました」にチェックを入れてから「本番反映」を実行
    - Adminモード（チェックON）で `admin.conversations.rename` を使用
 
 ---
