@@ -52,10 +52,12 @@
       .chip.ok { background: rgba(16,185,129,.1); color: #34d399; }
       .chip.warn { background: rgba(245,158,11,.1); color: #fbbf24; }
       .chip.err { background: rgba(239,68,68,.1); color: #f87171; }
+      .chip.small { padding: 1px 6px; font-size: 11px; }
       .row-gap { height: 6px; }
       .toggle { display:flex; align-items:center; gap:8px; color: var(--muted); }
       .muted { color: var(--muted); font-size: 12px; }
       .header-actions { display:flex; gap:10px; align-items:center; }
+      .auth-chips { display:flex; gap:6px; align-items:center; }
     </style>
     <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   </head>
@@ -66,6 +68,7 @@
         <div class="sub">CSVで編集して、一括でチャンネル名を更新</div>
       </div>
       <div class="header-actions">
+        <div id="authChips" class="auth-chips muted">Loading…</div>
         <label class="toggle"><input type="checkbox" id="adminMode" /> Adminモード</label>
         <label class="toggle"><input type="checkbox" id="themeToggle" /> ダークモード</label>
       </div>
@@ -73,11 +76,6 @@
 
     <div class="container">
       <div class="row">
-        <div class="card">
-          <h3 style="margin-top:0">トークン状態</h3>
-          <div id="authStatus" class="muted">Loading...</div>
-        </div>
-
         <div class="card">
           <h3 style="margin-top:0">エクスポート</h3>
           <div class="controls">
@@ -112,11 +110,16 @@
       async function refreshAuth() {
         try {
           const s = await fetchJSON('/api/auth-status');
-          const user = s.user?.ok ? `User: OK (user=${s.user.user}, team=${s.user.team})` : 'User: 未設定';
-          const admin = s.admin?.ok ? `Admin: OK (user=${s.admin.user}, team=${s.admin.team})` : 'Admin: 未設定';
-          document.getElementById('authStatus').textContent = `${user} / ${admin}`;
+          const userOk = !!s.user?.ok; const adminOk = !!s.admin?.ok;
+          const userTitle = userOk ? `User OK / user=${s.user.user}, team=${s.user.team}` : 'User 未設定';
+          const adminTitle = adminOk ? `Admin OK / user=${s.admin.user}, team=${s.admin.team}` : 'Admin 未設定';
+          const chips = `
+            <span class="chip small ${userOk ? 'ok' : 'err'}" title="${userTitle}">${userOk ? 'User OK' : 'User 未'}</span>
+            <span class="chip small ${adminOk ? 'ok' : 'err'}" title="${adminTitle}">${adminOk ? 'Admin OK' : 'Admin 未'}</span>
+          `;
+          document.getElementById('authChips').innerHTML = chips;
         } catch (e) {
-          document.getElementById('authStatus').textContent = 'エラー: ' + e.message;
+          document.getElementById('authChips').textContent = 'トークン確認エラー';
         }
       }
 
