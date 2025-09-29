@@ -105,25 +105,27 @@ app.post('/api/rename/dry-run', upload.single('file'), async (req, res) => {
       const current = String(r.current_name || '').trim();
       const requested = String(r.new_name || '').trim();
       const notes = r.NOTE || r.notes || '';
+      const archived = (r.archived || '').toString().toLowerCase();
+      const channel_type = (r.channel_type || '').toString().toLowerCase();
 
       if (!channelId || !requested) {
-        plan.push({ channel_id: channelId, current_name: current, requested_name: requested, status: 'skipped', reason: 'missing_channel_id_or_new_name', notes });
+        plan.push({ channel_id: channelId, current_name: current, requested_name: requested, status: 'skipped', reason: 'missing_channel_id_or_new_name', notes, archived, channel_type });
         continue;
       }
 
       const normalized = normalizeChannelName(requested);
       const validation = validateChannelName(normalized);
       if (!validation.valid) {
-        plan.push({ channel_id: channelId, current_name: current, requested_name: requested, normalized_name: normalized, status: 'invalid', reason: validation.reason, notes });
+        plan.push({ channel_id: channelId, current_name: current, requested_name: requested, normalized_name: normalized, status: 'invalid', reason: validation.reason, notes, archived, channel_type });
         continue;
       }
 
       if (normalized === current) {
-        plan.push({ channel_id: channelId, current_name: current, requested_name: requested, normalized_name: normalized, status: 'noop', reason: 'same_as_current', notes });
+        plan.push({ channel_id: channelId, current_name: current, requested_name: requested, normalized_name: normalized, status: 'noop', reason: 'same_as_current', notes, archived, channel_type });
         continue;
       }
 
-      plan.push({ channel_id: channelId, current_name: current, requested_name: requested, normalized_name: normalized, status: 'will_rename', notes });
+      plan.push({ channel_id: channelId, current_name: current, requested_name: requested, normalized_name: normalized, status: 'will_rename', notes, archived, channel_type });
     }
 
     return res.json({ admin, dryRun: true, count: plan.length, plan });
@@ -153,8 +155,10 @@ app.post('/api/rename/apply', upload.single('file'), async (req, res) => {
       const current = String(r.current_name || '').trim();
       const requested = String(r.new_name || '').trim();
       const notes = r.NOTE || r.notes || '';
+      const archived = (r.archived || '').toString().toLowerCase();
+      const channel_type = (r.channel_type || '').toString().toLowerCase();
       if (!channelId || !requested) {
-        const item = { channel_id: channelId, current_name: current, requested_name: requested, status: 'skipped', reason: 'missing_channel_id_or_new_name', notes };
+        const item = { channel_id: channelId, current_name: current, requested_name: requested, status: 'skipped', reason: 'missing_channel_id_or_new_name', notes, archived, channel_type };
         results.push(item);
         logger.jsonl(item);
         continue;
@@ -163,14 +167,14 @@ app.post('/api/rename/apply', upload.single('file'), async (req, res) => {
       const normalized = normalizeChannelName(requested);
       const validation = validateChannelName(normalized);
       if (!validation.valid) {
-        const item = { channel_id: channelId, current_name: current, requested_name: requested, normalized_name: normalized, status: 'invalid', reason: validation.reason, notes };
+        const item = { channel_id: channelId, current_name: current, requested_name: requested, normalized_name: normalized, status: 'invalid', reason: validation.reason, notes, archived, channel_type };
         results.push(item);
         logger.jsonl(item);
         continue;
       }
 
       if (normalized === current) {
-        const item = { channel_id: channelId, current_name: current, requested_name: requested, normalized_name: normalized, status: 'noop', reason: 'same_as_current', notes };
+        const item = { channel_id: channelId, current_name: current, requested_name: requested, normalized_name: normalized, status: 'noop', reason: 'same_as_current', notes, archived, channel_type };
         results.push(item);
         logger.jsonl(item);
         continue;
@@ -178,12 +182,12 @@ app.post('/api/rename/apply', upload.single('file'), async (req, res) => {
 
       try {
         const resp = await slack.renameChannel({ channelId, name: normalized, admin });
-        const item = { channel_id: channelId, from: current, to: normalized, status: 'renamed', ts: Date.now(), api_result: resp.ok === true, notes };
+        const item = { channel_id: channelId, from: current, to: normalized, status: 'renamed', ts: Date.now(), api_result: resp.ok === true, notes, archived, channel_type };
         results.push(item);
         logger.jsonl(item);
         revertItems.push({ channel_id: channelId, from: current, to: normalized });
       } catch (err) {
-        const item = { channel_id: channelId, from: current, to: normalized, status: 'error', error: err.message, notes };
+        const item = { channel_id: channelId, from: current, to: normalized, status: 'error', error: err.message, notes, archived, channel_type };
         results.push(item);
         logger.jsonl(item);
       }
