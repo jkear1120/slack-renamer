@@ -6,7 +6,7 @@
     <title>Slack Channel CSV Renamer</title>
     <style>
       :root {
-        --bg: #17130f; /* warm dark */
+        --bg: #22160e; /* warm dark (not black) */
         --panel: #1f1a14ee; /* warm dark panel */
         --text: #f3f4f6; /* light text */
         --muted: #cbd5e1; /* muted */
@@ -44,10 +44,15 @@
       .btn.secondary { background: transparent; color: var(--text); border-color: #334155; }
       .btn:disabled { opacity: .6; cursor: not-allowed; }
       .kpi { font-variant-numeric: tabular-nums; }
-      table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; table-layout: auto; }
       thead th { position: sticky; top: 0; background: #0b1220; z-index: 1; }
       th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
       .archived-row { background: rgba(244,63,94,.08); }
+      .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: auto; max-height: 480px; }
+      .loading { display:flex; align-items:center; gap:8px; color: var(--muted); padding: 8px 0; }
+      .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--brand); border-radius: 50%; animation: spin 1s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
       .chip { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--border); }
       .chip.ok { background: rgba(16,185,129,.1); color: #34d399; }
       .chip.warn { background: rgba(245,158,11,.1); color: #fbbf24; }
@@ -138,6 +143,7 @@
         const types = document.getElementById('types').value || 'public_channel,private_channel';
         const includeArchived = document.getElementById('includeArchived').checked;
         const q = new URLSearchParams({ types, include_archived: includeArchived ? 'true' : 'false' }).toString();
+        showLoading('exportPreview', '一覧を取得中…');
         const r = await fetch(`/api/channels/preview?${q}`);
         if (!r.ok) return alert(await r.text());
         const data = await r.json();
@@ -172,6 +178,7 @@
       async function handlePreview() {
         const file = document.getElementById('csvFile').files[0];
         if (!file) return alert('CSVファイルを選択してください');
+        showLoading('result', 'プレビューを作成中…');
         const rows = await readCSVFile(file);
         const res = await postRows('/api/rename/dry-run', rows);
         renderResult(res.plan || res.results || [], { title: 'プレビュー結果' });
@@ -245,6 +252,8 @@
               try { v = new Date(v).toLocaleString(); } catch {}
             }
             td.textContent = v;
+            td.classList.add('nowrap');
+            if (v != null) td.title = String(v);
             tr.appendChild(td);
           });
           tbody.appendChild(tr);
@@ -255,8 +264,11 @@
         h.textContent = title;
         h.style.marginTop = '12px';
         h.style.fontWeight = '600';
+        const wrap = document.createElement('div');
+        wrap.className = 'table-wrap';
+        wrap.appendChild(table);
         resultEl.appendChild(h);
-        resultEl.appendChild(table);
+        resultEl.appendChild(wrap);
       }
 
       document.getElementById('btnPreview').addEventListener('click', () => handlePreview().catch(e => alert(e.message)));
@@ -315,6 +327,11 @@
           };
           document.getElementById('result').appendChild(btn);
         }
+      }
+
+      function showLoading(mountId, message) {
+        const el = document.getElementById(mountId);
+        el.innerHTML = `<div class="loading"><span class="spinner"></span><span>${message}</span></div>`;
       }
     </script>
   </body>
