@@ -54,7 +54,20 @@ app.get('/api/channels/export', async (req, res) => {
       };
     });
     const csv = stringify(records, { header: true, columns: ['channel_id', 'current_name', 'channel_type', 'connect', 'archived', 'new_name', 'NOTE'] });
-    const filename = `channels_export_${Date.now()}.csv`;
+    const ts = Date.now();
+    const filename = `channels_export_${ts}.csv`;
+    // 保存（履歴用）
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const logsDir = path.join(process.cwd(), 'logs');
+      if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+      const outPath = path.join(logsDir, `export-${ts}.csv`);
+      fs.writeFileSync(outPath, csv);
+    } catch (e) {
+      // ベストエフォートで保存、失敗してもレスポンスは返す
+      console.warn('failed to write export history:', e.message);
+    }
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
     res.send(csv);
@@ -141,7 +154,9 @@ app.post('/api/rename/apply', upload.single('file'), async (req, res) => {
     const admin = req.body.admin === 'true' || req.query.admin === 'true';
 
     let rows = [];
+    let originalCsvBuffer = null;
     if (req.file) {
+      originalCsvBuffer = Buffer.from(req.file.buffer);
       rows = parse(req.file.buffer.toString('utf8'), { columns: true, skip_empty_lines: true });
     } else if (Array.isArray(req.body.rows)) {
       rows = req.body.rows;
@@ -202,6 +217,25 @@ app.post('/api/rename/apply', upload.single('file'), async (req, res) => {
       logger.jsonl({ status: 'warn', warn: 'failed_to_write_revert_meta', error: e.message });
     }
 
+    // 保存: インポートCSV履歴
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const logsDir = path.join(process.cwd(), 'logs');
+      if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+      const importPath = path.join(logsDir, `import-${logger.id}.csv`);
+      if (originalCsvBuffer) {
+        fs.writeFileSync(importPath, originalCsvBuffer);
+      } else {
+        // rows からCSV再生成
+        const columns = ['channel_id','current_name','channel_type','connect','archived','new_name','NOTE'];
+        const csvFromRows = stringify(rows, { header: true, columns: columns.filter(c => rows.some(r => c in r)) });
+        fs.writeFileSync(importPath, csvFromRows);
+      }
+    } catch (e) {
+      logger.jsonl({ status: 'warn', warn: 'failed_to_write_import_csv', error: e.message });
+    }
+
     logger.humanSummary(results);
     const { id, jsonlPath, logPath } = logger.close();
     res.json({ admin, applied: true, batchId: id, count: results.length, results, logs: { jsonlPath, logPath } });
@@ -244,6 +278,63 @@ app.post('/api/rename/revert', async (req, res) => {
   } catch (e) {
     const { id, jsonlPath, logPath } = logger.close();
     res.status(500).json({ error: e.message, revertBatchId: id, logs: { jsonlPath, logPath } });
+  }
+});
+
+// Logs: list
+app.get('/api/logs/list', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const dir = path.join(process.cwd(), 'logs');
+    if (!fs.existsSync(dir)) return res.json({ files: [] });
+    const items = fs.readdirSync(dir)
+      .filter((n) => /\.(log|jsonl|json|csv)$/i.test(n))
+      .map((name) => {
+        const stat = fs.statSync(path.join(dir, name));
+        let kind = 'other';
+        if (name.startsWith('run-') && name.endsWith('.jsonl')) kind = 'jsonl';
+        else if (name.startsWith('run-') && name.endsWith('.log')) kind = 'log';
+        else if (name.startsWith('revert-') && name.endsWith('.json')) kind = 'revert';
+        else if (name.startsWith('export-') && name.endsWith('.csv')) kind = 'export';
+        else if (name.startsWith('import-') && name.endsWith('.csv')) kind = 'import';
+        return { name, size: stat.size, mtime: stat.mtimeMs, kind };
+      })
+      .sort((a,b) => b.mtime - a.mtime);
+    res.json({ files: items });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Logs: download file
+app.get('/api/logs/get', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const name = String(req.query.name || '');
+    if (!name || name.includes('/') || name.includes('..')) return res.status(400).json({ error: 'invalid name' });
+    const p = path.join(process.cwd(), 'logs', name);
+    if (!fs.existsSync(p)) return res.status(404).json({ error: 'not found' });
+    res.download(p, name);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Logs: read text (preview)
+app.get('/api/logs/view', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const name = String(req.query.name || '');
+    if (!name || name.includes('/') || name.includes('..')) return res.status(400).json({ error: 'invalid name' });
+    const p = path.join(process.cwd(), 'logs', name);
+    if (!fs.existsSync(p)) return res.status(404).json({ error: 'not found' });
+    const buf = fs.readFileSync(p);
+    res.type('text/plain').send(buf);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

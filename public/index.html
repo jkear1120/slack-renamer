@@ -57,6 +57,10 @@
       .controls { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
       label { font-size: 13px; color: var(--text); }
       input[type="text"], input[type="file"] { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 8px; }
+      /* Styled selects */
+      .select-wrap { position: relative; display:inline-flex; align-items:center; }
+      select.select { appearance: none; -webkit-appearance: none; -moz-appearance: none; padding: 6px 28px 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: linear-gradient(135deg, #fff, #fff7ed); color: var(--text); }
+      .select-wrap::after { content: '\25BE'; position: absolute; right: 10px; font-size: 10px; color: var(--muted); pointer-events: none; }
       .btn { border: 1px solid var(--border); color: white; background: linear-gradient(135deg, var(--brand), var(--brand-2)); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 8px 24px rgba(245,158,11,.25); }
       .btn.secondary { background: transparent; color: var(--text); border-color: #334155; }
       .btn:disabled { opacity: .6; cursor: not-allowed; }
@@ -80,6 +84,8 @@
       .muted { color: var(--muted); font-size: 12px; }
       .header-actions { display:flex; gap:10px; align-items:center; }
       .auth-chips { display:flex; gap:6px; align-items:center; }
+      /* Export card width */
+      .export-card { max-width: 1050px; width: 100%; justify-self: start; }
     </style>
     <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
   </head>
@@ -98,7 +104,7 @@
 
     <div class="container">
       <div class="row">
-        <div class="card span-2">
+        <div class="card span-2 export-card">
           <h3 style="margin-top:0">エクスポート</h3>
         <div class="controls">
           <label>types: <input id="types" value="public_channel,private_channel" style="width:220px"/></label>
@@ -122,6 +128,23 @@
             <button class="btn" id="btnApply" disabled>本番反映</button>
           </div>
           <div id="result"></div>
+        </div>
+
+        <div class="card wide" id="logsCard">
+          <h3 style="margin-top:0">ログビューア</h3>
+          <div class="controls">
+            <button class="btn secondary" id="btnLoadLogs">ログを読み込む</button>
+            <span class="select-wrap"><select class="select" id="logKind">
+              <option value="all">すべて</option>
+              <option value="export">エクスポート</option>
+              <option value="import">インポート</option>
+              <option value="log">テキストログ</option>
+              <option value="jsonl">JSONL</option>
+              <option value="revert">リバート</option>
+            </select></span>
+            <input type="text" id="logSearch" placeholder="検索（ファイル名）" />
+          </div>
+          <div id="logsList"></div>
         </div>
       </div>
     </div>
@@ -295,22 +318,26 @@
         // Filters (if columns exist)
         let selArchived, selType, selSort, selDir;
         if (cols.includes('archived')) {
-          selArchived = document.createElement('select');
+          const wrapA = document.createElement('span'); wrapA.className = 'select-wrap';
+          selArchived = document.createElement('select'); selArchived.className = 'select';
           selArchived.innerHTML = '<option value="all">すべて</option><option value="active">アクティブ</option><option value="archived">アーカイブ</option>';
-          controls.appendChild(selArchived);
+          wrapA.appendChild(selArchived); controls.appendChild(wrapA);
         }
         if (cols.includes('channel_type')) {
-          selType = document.createElement('select');
+          const wrapT = document.createElement('span'); wrapT.className = 'select-wrap';
+          selType = document.createElement('select'); selType.className = 'select';
           selType.innerHTML = '<option value="all">全タイプ</option><option value="public">公開</option><option value="private">非公開</option>';
-          controls.appendChild(selType);
+          wrapT.appendChild(selType); controls.appendChild(wrapT);
         }
         // Sort
-        selSort = document.createElement('select');
+        const wrapS = document.createElement('span'); wrapS.className = 'select-wrap';
+        selSort = document.createElement('select'); selSort.className = 'select';
         selSort.innerHTML = cols.map(c => `<option value="${c}">${jpMap[c] || c}</option>`).join('');
-        controls.appendChild(selSort);
-        selDir = document.createElement('select');
+        wrapS.appendChild(selSort); controls.appendChild(wrapS);
+        const wrapD = document.createElement('span'); wrapD.className = 'select-wrap';
+        selDir = document.createElement('select'); selDir.className = 'select';
         selDir.innerHTML = '<option value="asc">昇順</option><option value="desc">降順</option>';
-        controls.appendChild(selDir);
+        wrapD.appendChild(selDir); controls.appendChild(wrapD);
 
         const wrap = document.createElement('div');
         wrap.className = 'table-wrap';
@@ -434,6 +461,55 @@
       function showLoading(mountId, message) {
         const el = document.getElementById(mountId);
         el.innerHTML = `<div class="loading"><span class="spinner"></span><span>${message}</span></div>`;
+      }
+
+      // Logs viewer
+      const btnLoadLogs = document.getElementById('btnLoadLogs');
+      if (btnLoadLogs) {
+        btnLoadLogs.addEventListener('click', () => loadLogs().catch(e => alert(e.message)));
+        document.getElementById('logKind').addEventListener('change', () => loadLogs().catch(e => alert(e.message)));
+        document.getElementById('logSearch').addEventListener('input', () => loadLogs().catch(e => alert(e.message)));
+      }
+      async function loadLogs() {
+        showLoading('logsList', 'ログ一覧を取得中…');
+        const r = await fetch('/api/logs/list');
+        if (!r.ok) { document.getElementById('logsList').textContent = await r.text(); return; }
+        const data = await r.json();
+        const kind = document.getElementById('logKind').value;
+        const q = (document.getElementById('logSearch').value || '').toLowerCase();
+        let files = data.files || [];
+        if (kind !== 'all') files = files.filter(f => f.kind === kind);
+        if (q) files = files.filter(f => f.name.toLowerCase().includes(q));
+
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>名前</th><th>種類</th><th>サイズ</th><th>更新日</th><th>操作</th></tr>';
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        files.forEach(f => {
+          const tr = document.createElement('tr');
+          const tdName = document.createElement('td'); tdName.className='nowrap'; tdName.textContent = f.name; tdName.title=f.name;
+          const tdKind = document.createElement('td'); tdKind.textContent = f.kind;
+          const tdSize = document.createElement('td'); tdSize.textContent = (f.size/1024).toFixed(1)+' KB';
+          const tdTime = document.createElement('td'); tdTime.textContent = new Date(f.mtime).toLocaleString();
+          const tdAct = document.createElement('td');
+          const btnDl = document.createElement('button'); btnDl.className='btn secondary'; btnDl.textContent = 'DL'; btnDl.onclick = () => { location.href = `/api/logs/get?name=${encodeURIComponent(f.name)}`; };
+          const btnView = document.createElement('button'); btnView.className='btn secondary'; btnView.textContent = 'プレビュー'; btnView.style.marginLeft='6px'; btnView.onclick = async () => {
+            const r2 = await fetch(`/api/logs/view?name=${encodeURIComponent(f.name)}`);
+            if (!r2.ok) return alert(await r2.text());
+            const text = await r2.text();
+            const pre = document.createElement('pre'); pre.style.maxHeight='320px'; pre.style.overflow='auto'; pre.style.whiteSpace='pre-wrap'; pre.textContent = text.slice(0, 20000);
+            const wrap = document.getElementById('logsList');
+            wrap.innerHTML = '';
+            wrap.appendChild(pre);
+          };
+          tdAct.appendChild(btnDl); tdAct.appendChild(btnView);
+          tr.appendChild(tdName); tr.appendChild(tdKind); tr.appendChild(tdSize); tr.appendChild(tdTime); tr.appendChild(tdAct);
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        const wrap = document.createElement('div'); wrap.className='table-wrap'; wrap.appendChild(table);
+        const mount = document.getElementById('logsList'); mount.innerHTML=''; mount.appendChild(wrap);
       }
     </script>
   </body>
