@@ -60,11 +60,12 @@ SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
 
 ## CSV列構成（エクスポート）
 
-`channel_id,current_name,channel_type,connect,archived,new_name,NOTE`
+`channel_id,channel_link,current_name,channel_type,connect,archived,new_name,NOTE`
 
 - `channel_type`: `public` | `private`
 - `connect`: `external`（外部組織と接続）| `org`（同一Org内共有）| `shared`（共有だが外部/Org不明の旧型）| `none`（共有なし）
 - `archived`: `active` | `archived`
+- `channel_link`: `https://app.slack.com/client/<team_id>/<channel_id>` 形式の直接リンク（UIでクリック可能）
 - `NOTE`: 任意メモ（最右列）
 
 インポート時の注意:

@@ -41,10 +41,17 @@ app.get('/api/channels/export', async (req, res) => {
     const types = String(req.query.types || 'public_channel,private_channel');
     const includeArchived = String(req.query.include_archived || 'false') === 'true';
     const channels = await slack.listAllChannels({ types, includeArchived });
+    // チームIDを取得（リンク生成用）
+    let teamId = null;
+    try {
+      const a = await (slack.userToken ? slack.authTest('user') : slack.adminToken ? slack.authTest('admin') : null);
+      teamId = a?.team_id || null;
+    } catch {}
     const records = channels.map((c) => {
       const connect = c.is_ext_shared ? 'external' : (c.is_org_shared ? 'org' : (c.is_shared ? 'shared' : 'none'));
       return {
         channel_id: c.id,
+        channel_link: teamId ? `https://app.slack.com/client/${teamId}/${c.id}` : '',
         current_name: c.name,
         channel_type: c.is_private ? 'private' : 'public',
         connect,
@@ -53,7 +60,7 @@ app.get('/api/channels/export', async (req, res) => {
         NOTE: '',
       };
     });
-    const csv = stringify(records, { header: true, columns: ['channel_id', 'current_name', 'channel_type', 'connect', 'archived', 'new_name', 'NOTE'] });
+    const csv = stringify(records, { header: true, columns: ['channel_id', 'channel_link', 'current_name', 'channel_type', 'connect', 'archived', 'new_name', 'NOTE'] });
     const ts = Date.now();
     const filename = `channels_export_${ts}.csv`;
     // 保存（履歴用）
@@ -82,10 +89,16 @@ app.get('/api/channels/preview', async (req, res) => {
     const types = String(req.query.types || 'public_channel,private_channel');
     const includeArchived = String(req.query.include_archived || 'false') === 'true';
     const channels = await slack.listAllChannels({ types, includeArchived });
+    let teamId = null;
+    try {
+      const a = await (slack.userToken ? slack.authTest('user') : slack.adminToken ? slack.authTest('admin') : null);
+      teamId = a?.team_id || null;
+    } catch {}
     const records = channels.map((c) => {
       const connect = c.is_ext_shared ? 'external' : (c.is_org_shared ? 'org' : (c.is_shared ? 'shared' : 'none'));
       return {
         channel_id: c.id,
+        channel_link: teamId ? `https://app.slack.com/client/${teamId}/${c.id}` : '',
         current_name: c.name,
         channel_type: c.is_private ? 'private' : 'public',
         connect,

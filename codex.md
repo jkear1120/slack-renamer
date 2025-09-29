@@ -11,7 +11,8 @@
   - バックエンド: Express（`src/server.js`）
 - Slack Web API: `conversations.list`, `conversations.rename`, `admin.conversations.rename`
 - I/O（CSV）
-  - エクスポート: `channel_id,current_name,channel_type,connect,archived,new_name,NOTE`
+  - エクスポート: `channel_id,channel_link,current_name,channel_type,connect,archived,new_name,NOTE`
+    - `channel_link` は `https://app.slack.com/client/<team_id>/<channel_id>` をサーバ側で生成
   - インポート: 上記CSVを編集してアップロード（`archived` は無視、`NOTE` は任意）
 - ログ: JSONL + テキストの2系統（`logs/`）
 

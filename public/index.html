@@ -251,6 +251,7 @@
         // 列定義（存在する列のみ表示）
         const jpMap = {
           channel_id: 'チャンネルID',
+          channel_link: 'チャンネルリンク',
           current_name: '現在名',
           requested_name: '希望名',
           normalized_name: '正規化後',
@@ -270,7 +271,7 @@
         const prefCols = mode === 'apply'
           ? ['channel_id','from','to','status','error','api_result','notes']
           : mode === 'export'
-            ? ['channel_id','current_name','channel_type','connect','archived']
+            ? ['channel_id','channel_link','current_name','channel_type','connect','archived']
             : ['channel_id','current_name','requested_name','normalized_name','status','reason','notes'];
         const sample = items[0];
         const dynamicExtras = Object.keys(sample).filter(k => !prefCols.includes(k));
@@ -297,6 +298,13 @@
               const a = document.createElement('a');
               a.href = `https://app.slack.com/client/${encodeURIComponent(currentTeamId)}/${encodeURIComponent(String(v))}`;
               a.textContent = v;
+              a.target = '_blank'; a.rel = 'noopener noreferrer';
+              td.appendChild(a);
+            } else if (h === 'channel_link' && v) {
+              const a = document.createElement('a');
+              a.href = String(v);
+              a.textContent = '開く';
+              a.title = String(v);
               a.target = '_blank'; a.rel = 'noopener noreferrer';
               td.appendChild(a);
             } else {
