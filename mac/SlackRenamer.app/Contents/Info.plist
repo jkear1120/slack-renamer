@@ -8,6 +8,8 @@
   <string>com.local.slackrenamer</string>
   <key>CFBundleExecutable</key>
   <string>SlackRenamer</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleVersion</key>
