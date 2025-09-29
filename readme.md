@@ -47,7 +47,7 @@ SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
 2. エクスポート
    - types（`public_channel,private_channel` など）を指定
    - オプション「アーカイブも含める」を必要に応じてON
-   - 「CSVダウンロード」で取得
+   - 「プレビュー表示」で一覧を確認 → 問題なければ「CSVダウンロード」で取得
 3. CSV編集
    - エクスポートCSVを編集（`new_name` を記入、`NOTE` は任意）
 4. インポート＆プレビュー
@@ -60,9 +60,10 @@ SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
 
 ## CSV列構成（エクスポート）
 
-`channel_id,current_name,channel_type,archived,new_name,NOTE`
+`channel_id,current_name,channel_type,connect,archived,new_name,NOTE`
 
 - `channel_type`: `public` | `private`
+- `connect`: `external`（外部組織と接続）| `org`（同一Org内共有）| `shared`（共有だが外部/Org不明の旧型）| `none`（共有なし）
 - `archived`: `active` | `archived`
 - `NOTE`: 任意メモ（最右列）
 

@@ -78,11 +78,15 @@
       <div class="row">
         <div class="card">
           <h3 style="margin-top:0">エクスポート</h3>
-          <div class="controls">
-            <label>types: <input id="types" value="public_channel,private_channel" style="width:220px"/></label>
-          </div>
-          <label class="toggle"><input type="checkbox" id="includeArchived" /> アーカイブも含める</label>
-          <div style="margin-top:8px;"><button class="btn" id="btnExport">CSVダウンロード</button></div>
+        <div class="controls">
+          <label>types: <input id="types" value="public_channel,private_channel" style="width:220px"/></label>
+        </div>
+        <label class="toggle"><input type="checkbox" id="includeArchived" /> アーカイブも含める</label>
+        <div class="controls" style="margin-top:8px;">
+          <button class="btn secondary" id="btnExportPreview">プレビュー表示</button>
+          <button class="btn" id="btnExport">CSVダウンロード</button>
+        </div>
+        <div id="exportPreview"></div>
         </div>
 
         <div class="card wide">
@@ -128,6 +132,16 @@
         const includeArchived = document.getElementById('includeArchived').checked;
         const q = new URLSearchParams({ types, include_archived: includeArchived ? 'true' : 'false' }).toString();
         location.href = `/api/channels/export?${q}`;
+      });
+
+      document.getElementById('btnExportPreview').addEventListener('click', async () => {
+        const types = document.getElementById('types').value || 'public_channel,private_channel';
+        const includeArchived = document.getElementById('includeArchived').checked;
+        const q = new URLSearchParams({ types, include_archived: includeArchived ? 'true' : 'false' }).toString();
+        const r = await fetch(`/api/channels/preview?${q}`);
+        if (!r.ok) return alert(await r.text());
+        const data = await r.json();
+        renderResult(data.records || [], { title: `エクスポートプレビュー（${data.count}件）`, mode: 'export', mount: 'exportPreview' });
       });
 
       function getAdminFlag() {
@@ -180,7 +194,8 @@
       }
 
       function renderResult(items, opts = {}) {
-        const resultEl = document.getElementById('result');
+        const mountId = opts.mount || 'result';
+        const resultEl = document.getElementById(mountId);
         if (!items.length) { resultEl.textContent = '結果なし'; return; }
         const title = opts.title || '結果';
         const mode = opts.mode || 'preview';
@@ -195,6 +210,7 @@
           notes: 'メモ',
           NOTE: 'メモ',
           channel_type: '種別',
+          connect: 'コネクト',
           archived: 'アーカイブ',
           from: '変更前',
           to: '変更後',
@@ -204,7 +220,9 @@
         };
         const prefCols = mode === 'apply'
           ? ['channel_id','from','to','status','error','api_result','notes']
-          : ['channel_id','current_name','requested_name','normalized_name','status','reason','notes'];
+          : mode === 'export'
+            ? ['channel_id','current_name','channel_type','connect','archived']
+            : ['channel_id','current_name','requested_name','normalized_name','status','reason','notes'];
         const sample = items[0];
         const dynamicExtras = Object.keys(sample).filter(k => !prefCols.includes(k));
         const cols = [...prefCols.filter(k => k in sample), ...dynamicExtras];

@@ -11,7 +11,7 @@
   - バックエンド: Express（`src/server.js`）
 - Slack Web API: `conversations.list`, `conversations.rename`, `admin.conversations.rename`
 - I/O（CSV）
-  - エクスポート: `channel_id,current_name,channel_type,archived,new_name,NOTE`
+  - エクスポート: `channel_id,current_name,channel_type,connect,archived,new_name,NOTE`
   - インポート: 上記CSVを編集してアップロード（`archived` は無視、`NOTE` は任意）
 - ログ: JSONL + テキストの2系統（`logs/`）
 
@@ -38,6 +38,7 @@ logs/                 実行ログ（Git管理外）
 - `GET /api/channels/export?types=public_channel,private_channel&include_archived=true|false`
   - Slack `conversations.list` を全ページング
   - CSVをダウンロード（列は上記順）
+  - `connect` は `is_ext_shared/is_org_shared/is_shared` の組合せから `external|org|shared|none` を導出
 - `POST /api/rename/dry-run`（UI上の名称: プレビュー、`Content-Type: application/json` または `multipart/form-data`）
   - 入力: `rows: [{channel_id,current_name,new_name,NOTE?}]` もしくは `file`（CSV）
   - 戻り値: `{ plan: [{ status: will_rename|invalid|noop|skipped, ... }] }`
