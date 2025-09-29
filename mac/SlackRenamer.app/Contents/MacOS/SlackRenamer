@@ -1,0 +1,23 @@
+#!/bin/zsh
+set -euo pipefail
+
+# Resolve paths
+APP_DIR="$(cd -- "$(dirname "$0")/.." && pwd)"
+PROJECT_ROOT="$(cd -- "${APP_DIR}/../.." && pwd)"
+
+cd "$PROJECT_ROOT"
+
+# Ensure tokens file path is set for server
+export SLACK_RENAMER_TOKENS_FILE="${HOME}/Library/Application Support/SlackRenamer/tokens.json"
+
+# Install if needed
+if [ ! -d node_modules ]; then
+  echo "[SlackRenamer] Installing dependencies..."
+  npm install || { osascript -e 'display alert "SlackRenamer" message "npm install failed"'; exit 1; }
+fi
+
+# Start
+PORT="${PORT:-3000}"
+open "http://localhost:${PORT}" 2>/dev/null || true
+npm start
+

@@ -6,6 +6,7 @@ const multer = require('multer');
 const { parse } = require('csv-parse/sync');
 const { stringify } = require('csv-stringify/sync');
 const { SlackService } = require('./slack');
+const os = require('os');
 const { normalizeChannelName, validateChannelName } = require('./validation');
 const { RunLogger } = require('./writeLogs');
 
@@ -17,9 +18,23 @@ app.use(morgan('dev'));
 
 const PORT = process.env.PORT || 3000;
 
+function loadLocalTokens() {
+  try {
+    const defaultPath = process.env.SLACK_RENAMER_TOKENS_FILE ||
+      path.join(os.homedir(), 'Library', 'Application Support', 'SlackRenamer', 'tokens.json');
+    if (fs.existsSync(defaultPath)) {
+      const raw = fs.readFileSync(defaultPath, 'utf-8');
+      const json = JSON.parse(raw);
+      return { filePath: defaultPath, userToken: json.SLACK_USER_TOKEN || null, adminToken: json.SLACK_ADMIN_TOKEN || null };
+    }
+  } catch {}
+  return { filePath: null, userToken: null, adminToken: null };
+}
+
+const local = loadLocalTokens();
 const slack = new SlackService({
-  userToken: process.env.SLACK_USER_TOKEN,
-  adminToken: process.env.SLACK_ADMIN_TOKEN,
+  userToken: process.env.SLACK_USER_TOKEN || local.userToken,
+  adminToken: process.env.SLACK_ADMIN_TOKEN || local.adminToken,
 });
 
 app.get('/api/auth-status', async (req, res) => {
@@ -29,7 +44,36 @@ app.get('/api/auth-status', async (req, res) => {
     res.json({
       user: userAuth ? { ok: true, team: userAuth.team, team_id: userAuth.team_id, user: userAuth.user, user_id: userAuth.user_id } : { ok: false },
       admin: adminAuth ? { ok: true, team: adminAuth.team, team_id: adminAuth.team_id, user: adminAuth.user, user_id: adminAuth.user_id } : { ok: false },
+      tokens: {
+        source: (process.env.SLACK_USER_TOKEN || process.env.SLACK_ADMIN_TOKEN) ? 'env' : (local.userToken || local.adminToken) ? 'file' : 'none'
+      }
     });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Tokens: save/delete to local file (Library/Application Support/SlackRenamer/tokens.json)
+app.post('/api/tokens', async (req, res) => {
+  try {
+    const { userToken, adminToken } = req.body || {};
+    if (!userToken && !adminToken) return res.status(400).json({ error: 'no tokens' });
+    const dir = path.join(os.homedir(), 'Library', 'Application Support', 'SlackRenamer');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'tokens.json');
+    const data = { SLACK_USER_TOKEN: userToken || local.userToken || null, SLACK_ADMIN_TOKEN: adminToken || local.adminToken || null };
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/tokens', async (req, res) => {
+  try {
+    const file = path.join(os.homedir(), 'Library', 'Application Support', 'SlackRenamer', 'tokens.json');
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

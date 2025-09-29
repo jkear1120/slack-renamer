@@ -132,6 +132,18 @@
           <div id="result"></div>
         </div>
 
+        <div class="card">
+          <h3 style="margin-top:0">トークン設定（ローカル保存）</h3>
+          <div class="muted">この端末のみに保存します。環境変数が設定されている場合はそちらが優先されます。</div>
+          <div class="controls" style="margin-top:8px;">
+            <label>User Token: <input type="password" id="tokUser" placeholder="xoxp-..." style="width:220px"/></label>
+            <label>Admin Token: <input type="password" id="tokAdmin" placeholder="xoxe-..." style="width:220px"/></label>
+            <button class="btn" id="btnSaveTokens">保存</button>
+            <button class="btn secondary" id="btnClearTokens">削除</button>
+          </div>
+          <div id="tokenMsg" class="muted"></div>
+        </div>
+
         <div class="card wide" id="logsCard">
           <h3 style="margin-top:0">ログビューア</h3>
           <div class="controls">
@@ -436,6 +448,26 @@
 
       document.getElementById('btnPreview').addEventListener('click', () => handlePreview().catch(e => alert(e.message)));
       document.getElementById('btnApply').addEventListener('click', () => handleApply().catch(e => alert(e.message)));
+      const btnSaveTokens = document.getElementById('btnSaveTokens');
+      const btnClearTokens = document.getElementById('btnClearTokens');
+      if (btnSaveTokens) btnSaveTokens.addEventListener('click', async () => {
+        const userToken = (document.getElementById('tokUser').value || '').trim();
+        const adminToken = (document.getElementById('tokAdmin').value || '').trim();
+        if (!userToken && !adminToken) return alert('保存するトークンを入力してください');
+        const r = await fetch('/api/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userToken, adminToken }) });
+        const el = document.getElementById('tokenMsg');
+        if (!r.ok) { el.textContent = '保存に失敗しました: ' + (await r.text()); return; }
+        el.textContent = '保存しました。画面を更新すると反映されます。';
+        refreshAuth();
+      });
+      if (btnClearTokens) btnClearTokens.addEventListener('click', async () => {
+        if (!confirm('ローカル保存されたトークンを削除します。よろしいですか？')) return;
+        const r = await fetch('/api/tokens', { method: 'DELETE' });
+        const el = document.getElementById('tokenMsg');
+        if (!r.ok) { el.textContent = '削除に失敗しました: ' + (await r.text()); return; }
+        el.textContent = '削除しました。';
+        refreshAuth();
+      });
 
       refreshAuth();
 
