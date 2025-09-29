@@ -107,7 +107,8 @@
         <div class="card span-2 export-card">
           <h3 style="margin-top:0">エクスポート</h3>
         <div class="controls">
-          <label>types: <input id="types" value="public_channel,private_channel" style="width:220px"/></label>
+          <label class="toggle"><input type="checkbox" id="typePublic" checked /> 公開チャンネル</label>
+          <label class="toggle"><input type="checkbox" id="typePrivate" checked /> 非公開チャンネル</label>
         </div>
         <label class="toggle"><input type="checkbox" id="includeArchived" /> アーカイブも含める</label>
         <div class="controls" style="margin-top:8px;">
@@ -174,15 +175,25 @@
         }
       }
 
+      function getSelectedTypes() {
+        const pub = document.getElementById('typePublic')?.checked;
+        const pri = document.getElementById('typePrivate')?.checked;
+        let list = [];
+        if (pub) list.push('public_channel');
+        if (pri) list.push('private_channel');
+        if (!list.length) list = ['public_channel','private_channel'];
+        return list.join(',');
+      }
+
       document.getElementById('btnExport').addEventListener('click', () => {
-        const types = document.getElementById('types').value || 'public_channel,private_channel';
+        const types = getSelectedTypes();
         const includeArchived = document.getElementById('includeArchived').checked;
         const q = new URLSearchParams({ types, include_archived: includeArchived ? 'true' : 'false' }).toString();
         location.href = `/api/channels/export?${q}`;
       });
 
       document.getElementById('btnExportPreview').addEventListener('click', async () => {
-        const types = document.getElementById('types').value || 'public_channel,private_channel';
+        const types = getSelectedTypes();
         const includeArchived = document.getElementById('includeArchived').checked;
         const q = new URLSearchParams({ types, include_archived: includeArchived ? 'true' : 'false' }).toString();
         showLoading('exportPreview', '一覧を取得中…');

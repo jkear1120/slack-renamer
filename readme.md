@@ -45,7 +45,7 @@ SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
 ## 使い方（ブラウザUI）
 1. 画面上部の「トークン状態」を確認（User/Adminどちらが有効か）
 2. エクスポート
-   - types（`public_channel,private_channel` など）を指定
+   - チャンネル種別をチェック（公開/非公開）
    - オプション「アーカイブも含める」を必要に応じてON
    - 「プレビュー表示」で一覧を確認 → 問題なければ「CSVダウンロード」で取得
 3. CSV編集
