@@ -296,15 +296,19 @@
             }
             if (h === 'channel_id' && currentTeamId && v) {
               const a = document.createElement('a');
-              a.href = `https://app.slack.com/client/${encodeURIComponent(currentTeamId)}/${encodeURIComponent(String(v))}`;
+              a.href = `slack://channel?team=${encodeURIComponent(currentTeamId)}&id=${encodeURIComponent(String(v))}`;
               a.textContent = v;
               a.target = '_blank'; a.rel = 'noopener noreferrer';
               td.appendChild(a);
             } else if (h === 'channel_link' && v) {
+              // Prefer Slack app deep link if team_id is available
+              const href = (currentTeamId && row.channel_id)
+                ? `slack://channel?team=${encodeURIComponent(currentTeamId)}&id=${encodeURIComponent(String(row.channel_id))}`
+                : String(v);
               const a = document.createElement('a');
-              a.href = String(v);
+              a.href = href;
               a.textContent = '開く';
-              a.title = String(v);
+              a.title = href;
               a.target = '_blank'; a.rel = 'noopener noreferrer';
               td.appendChild(a);
             } else {
