@@ -25,6 +25,17 @@ cd slack-renamer
 npm install
 ```
 
+### mac用ショートカットで起動
+```bash
+# Finder から: scripts/start-mac.command をダブルクリック
+# ターミナルから:
+./scripts/start-mac.command
+```
+
+- 初回起動時に `npm install` を自動実行します
+- `SLACK_USER_TOKEN`/`SLACK_ADMIN_TOKEN` が未設定の場合、対話プロンプトで入力できます（保存はしません）
+- 起動後にブラウザで `http://localhost:3000` を自動で開きます
+
 ### トークン設定（どちらか／両方）
 - Workspace 単体: `SLACK_USER_TOKEN`（例: `xoxp-...`）
 - Enterprise Grid 全社横断: `SLACK_ADMIN_TOKEN`（例: `xoxe-...`）
