@@ -108,3 +108,16 @@ SLACK_USER_TOKEN=xoxp-*** SLACK_ADMIN_TOKEN=xoxe-*** npm start
 ## ライセンス
 
 内部利用限定
+- 単体配布用 .app の作成（Node同梱）
+```bash
+# 依存のインストール（初回のみ）
+npm install
+
+# アイコン作成（任意: mac/icon-source.png があればそれを使用）
+./mac/make-app-icon.command
+
+# パッケージング（dist/SlackRenamer.app が作成されます）
+./scripts/package-mac-app.command
+
+# 生成物を配布すれば、Node未導入のMacでも利用できます
+```
