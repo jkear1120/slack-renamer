@@ -27,8 +27,8 @@ app.get('/api/auth-status', async (req, res) => {
     const userAuth = slack.userToken ? await slack.authTest('user') : null;
     const adminAuth = slack.adminToken ? await slack.authTest('admin') : null;
     res.json({
-      user: userAuth ? { ok: true, team: userAuth.team, user: userAuth.user } : { ok: false },
-      admin: adminAuth ? { ok: true, team: adminAuth.team, user: adminAuth.user } : { ok: false },
+      user: userAuth ? { ok: true, team: userAuth.team, team_id: userAuth.team_id, user: userAuth.user, user_id: userAuth.user_id } : { ok: false },
+      admin: adminAuth ? { ok: true, team: adminAuth.team, team_id: adminAuth.team_id, user: adminAuth.user, user_id: adminAuth.user_id } : { ok: false },
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

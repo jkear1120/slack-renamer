@@ -150,6 +150,7 @@
     </div>
 
     <script>
+      let currentTeamId = null;
       async function fetchJSON(url) {
         const r = await fetch(url);
         if (!r.ok) throw new Error(await r.text());
@@ -162,6 +163,7 @@
           const userOk = !!s.user?.ok; const adminOk = !!s.admin?.ok;
           const userTitle = userOk ? `User OK / user=${s.user.user}, team=${s.user.team}` : 'User 未設定';
           const adminTitle = adminOk ? `Admin OK / user=${s.admin.user}, team=${s.admin.team}` : 'Admin 未設定';
+          currentTeamId = (s.user?.team_id) || (s.admin?.team_id) || null;
           const chips = `
             <span class="chip small ${userOk ? 'ok' : 'err'}" title="${userTitle}">${userOk ? 'User OK' : 'User 未'}</span>
             <span class="chip small ${adminOk ? 'ok' : 'err'}" title="${adminTitle}">${adminOk ? 'Admin OK' : 'Admin 未'}</span>
@@ -291,7 +293,15 @@
             if (h === 'ts' && v) {
               try { v = new Date(v).toLocaleString(); } catch {}
             }
-            td.textContent = v;
+            if (h === 'channel_id' && currentTeamId && v) {
+              const a = document.createElement('a');
+              a.href = `https://app.slack.com/client/${encodeURIComponent(currentTeamId)}/${encodeURIComponent(String(v))}`;
+              a.textContent = v;
+              a.target = '_blank'; a.rel = 'noopener noreferrer';
+              td.appendChild(a);
+            } else {
+              td.textContent = v;
+            }
             td.classList.add('nowrap');
             if (v != null) td.title = String(v);
             tr.appendChild(td);
