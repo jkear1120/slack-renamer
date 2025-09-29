@@ -3,24 +3,40 @@ set -euo pipefail
 
 # Resolve paths
 APP_DIR="$(cd -- "$(dirname "$0")/.." && pwd)"
-# .app は <repo>/mac/SlackRenamer.app に置いているため、repo root へは3階層上がる
-PROJECT_ROOT="$(cd -- "${APP_DIR}/../../.." && pwd)"
+RES_DIR="${APP_DIR}/Resources"
+APP_SRC_DIR="${RES_DIR}/app"
 
-cd "$PROJECT_ROOT"
-
-# Ensure tokens file path is set for server
-export SLACK_RENAMER_TOKENS_FILE="${HOME}/Library/Application Support/SlackRenamer/tokens.json"
-
-# Install if needed
-if [ ! -d node_modules ]; then
-  echo "[SlackRenamer] Installing dependencies..."
-  npm install || { osascript -e 'display alert "SlackRenamer" message "npm install failed"'; exit 1; }
+# Determine working directory: packaged app or repo root fallback
+if [ -d "${APP_SRC_DIR}/src" ]; then
+  cd "${APP_SRC_DIR}"
+else
+  # Fallback for running inside repo (dev scenario)
+  cd "${APP_DIR}/../../.."
 fi
 
-# Start
+export SLACK_RENAMER_TOKENS_FILE="${HOME}/Library/Application Support/SlackRenamer/tokens.json"
+
+# Prefer embedded node
+EMBED_NODE="${APP_DIR}/MacOS/node"
+if [ -x "${EMBED_NODE}" ]; then
+  NODE_BIN="${EMBED_NODE}"
+else
+  NODE_BIN="$(command -v node || true)"
+fi
+if [ -z "${NODE_BIN}" ]; then
+  osascript -e 'display alert "SlackRenamer" message "Node.js not found. Please install Node 18+."' || true
+  exit 1
+fi
+
+# Ensure deps (only when running from repo)
+if [ ! -d node_modules ]; then
+  echo "[SlackRenamer] Installing dependencies..."
+  npm install --omit=dev || { osascript -e 'display alert "SlackRenamer" message "npm install failed"'; exit 1; }
+fi
+
 PORT="${PORT:-3000}"
 open "http://localhost:${PORT}" 2>/dev/null || true
-npm start
+exec "${NODE_BIN}" src/server.js
 # Icon (generate if missing)
 ICON_RES="${APP_DIR}/Resources"
 ICON_ICNS="${ICON_RES}/AppIcon.icns"
