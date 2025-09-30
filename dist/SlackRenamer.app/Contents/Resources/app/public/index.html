@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Slack Channel CSV Renamer</title>
+    <style>
+      :root {
+        /* Light (default) */
+        --bg: #fff7ed; /* warm light (peach) */
+        --panel: #ffffffee; /* light panel */
+        --text: #1f2937; /* gray-800 */
+        --muted: #64748b; /* gray-500 */
+        --brand: #f59e0b; /* amber-500 */
+        --brand-2: #f43f5e; /* rose-500 */
+        --ok: #10b981; /* emerald-500 */
+        --warn: #f59e0b; /* amber-500 */
+        --err: #ef4444; /* red-500 */
+        --border: #e5e7eb; /* gray-200 */
+        --thead-bg: #fff1e6; /* light sticky header */
+      }
+      body[data-dark="1"] {
+        /* Dark theme overrides (on toggle) */
+        --bg: #22160e; /* warm dark */
+        --panel: #1f1a14ee; /* warm dark panel */
+        --text: #f3f4f6; /* light text */
+        --muted: #cbd5e1; /* muted */
+        --brand: #f59e0b; /* amber-500 */
+        --brand-2: #f43f5e; /* rose-500 */
+        --ok: #10b981; /* emerald-500 */
+        --warn: #f59e0b; /* amber-500 */
+        --err: #ef4444; /* red-500 */
+        --border: #3f2f21; /* warm border */
+        --thead-bg: #0b1220; /* dark sticky header */
+      }
+      body {
+        margin: 0; padding: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        color: var(--text);
+        background:
+          radial-gradient(60% 120% at 0% 0%, rgba(245,158,11,.18), transparent 60%),
+          radial-gradient(80% 140% at 100% 0%, rgba(244,63,94,.15), transparent 60%),
+          var(--bg);
+        min-height: 100vh;
+      }
+      header {
+        padding: 24px 24px 12px 24px;
+        display:flex; justify-content: space-between; align-items: center;
+      }
+      h2 { margin: 0; font-weight: 650; letter-spacing: .2px; }
+      .sub { color: var(--muted); font-size: 12px; }
+      .container { padding: 0 24px 32px 24px; }
+      .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+      .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; backdrop-filter: blur(6px); }
+      .wide { grid-column: 1 / -1; }
+      .span-2 { grid-column: span 2; }
+      .controls { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
+      label { font-size: 13px; color: var(--text); }
+      input[type="text"], input[type="file"] { background: transparent; color: var(--text); border: 1px solid var(--border); padding: 6px 8px; border-radius: 8px; }
+      /* Styled selects */
+      .select-wrap { position: relative; display:inline-flex; align-items:center; }
+      select.select { appearance: none; -webkit-appearance: none; -moz-appearance: none; padding: 6px 28px 6px 10px; border-radius: 10px; border: 1px solid var(--border); background: linear-gradient(135deg, #fff, #fff7ed); color: var(--text); }
+      .select-wrap::after { content: '\25BE'; position: absolute; right: 10px; font-size: 10px; color: var(--muted); pointer-events: none; }
+      .btn { border: 1px solid var(--border); color: white; background: linear-gradient(135deg, var(--brand), var(--brand-2)); padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 8px 24px rgba(245,158,11,.25); }
+      .btn.secondary { background: transparent; color: var(--text); border-color: #334155; }
+      .btn:disabled { opacity: .6; cursor: not-allowed; }
+      .kpi { font-variant-numeric: tabular-nums; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; table-layout: auto; }
+      thead th { position: sticky; top: 0; background: var(--thead-bg); z-index: 1; }
+      th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
+      .archived-row { background: rgba(244,63,94,.08); }
+      .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: auto; max-height: 480px; }
+      .loading { display:flex; align-items:center; gap:8px; color: var(--muted); padding: 8px 0; }
+      .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--brand); border-radius: 50%; animation: spin 1s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .chip { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid var(--border); }
+      .chip.ok { background: rgba(16,185,129,.1); color: #34d399; }
+      .chip.warn { background: rgba(245,158,11,.1); color: #fbbf24; }
+      .chip.err { background: rgba(239,68,68,.1); color: #f87171; }
+      .chip.small { padding: 1px 6px; font-size: 11px; }
+      .row-gap { height: 6px; }
+      .toggle { display:flex; align-items:center; gap:8px; color: var(--muted); }
+      .muted { color: var(--muted); font-size: 12px; }
+      .header-actions { display:flex; gap:10px; align-items:center; }
+      .auth-chips { display:flex; gap:6px; align-items:center; }
+      .note { font-size: 12px; color: var(--muted); }
+      /* Export card width */
+      .export-card { max-width: 1050px; width: 100%; justify-self: start; }
+    </style>
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h2>Slack Channel CSV Renamer</h2>
+        <div class="sub">CSVで編集して、一括でチャンネル名を更新</div>
+      </div>
+      <div class="header-actions">
+        <div id="authChips" class="auth-chips muted">Loading…</div>
+        <label class="toggle"><input type="checkbox" id="adminMode" /> Adminモード</label>
+        <label class="toggle"><input type="checkbox" id="themeToggle" /> ダークモード</label>
+      </div>
+    </header>
+
+    <div class="container">
+      <div class="row">
+        <div class="card span-2 export-card">
+          <h3 style="margin-top:0">エクスポート</h3>
+        <div class="controls">
+          <label class="toggle"><input type="checkbox" id="typePublic" checked /> 公開チャンネル</label>
+          <label class="toggle"><input type="checkbox" id="typePrivate" checked /> 非公開チャンネル</label>
+        </div>
+        <label class="toggle"><input type="checkbox" id="includeArchived" /> アーカイブも含める</label>
+        <div class="controls" style="margin-top:8px;">
+          <button class="btn secondary" id="btnExportPreview">プレビュー表示</button>
+          <button class="btn" id="btnExport">CSVダウンロード</button>
+        </div>
+        <div id="exportPreview"></div>
+        </div>
+
+        <div class="card wide">
+          <h3 style="margin-top:0">CSVインポート → プレビュー/適用</h3>
+          <div class="muted">`new_name` 列に変更後の名前を入れてください。`NOTE` は任意です。</div>
+          <div class="row-gap"></div>
+          <input type="file" id="csvFile" accept=".csv" />
+          <div class="controls" style="margin-top:8px;">
+            <button class="btn secondary" id="btnPreview">プレビュー</button>
+            <label class="toggle"><input type="checkbox" id="finalConfirm" /> 最終確認しました</label>
+            <button class="btn" id="btnApply" disabled>本番反映</button>
+          </div>
+          <div id="result"></div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-top:0">トークン設定（ローカル保存）</h3>
+          <div class="muted">この端末のみに保存します。環境変数が設定されている場合はそちらが優先されます。</div>
+          <div class="controls" style="margin-top:8px;">
+            <label>User Token: <input type="password" id="tokUser" placeholder="xoxp-..." style="width:220px"/></label>
+            <label>Admin Token: <input type="password" id="tokAdmin" placeholder="xoxe-..." style="width:220px"/></label>
+            <button class="btn" id="btnSaveTokens">保存</button>
+            <button class="btn secondary" id="btnClearTokens">削除</button>
+          </div>
+          <div id="tokenMsg" class="muted"></div>
+        </div>
+
+        <div class="card wide" id="logsCard">
+          <h3 style="margin-top:0">ログビューア</h3>
+          <div class="controls">
+            <button class="btn secondary" id="btnLoadLogs">ログを読み込む</button>
+            <span class="select-wrap"><select class="select" id="logKind">
+              <option value="all">すべて</option>
+              <option value="export">エクスポート</option>
+              <option value="import">インポート</option>
+              <option value="log">テキストログ</option>
+              <option value="jsonl">JSONL</option>
+              <option value="revert">リバート</option>
+            </select></span>
+            <input type="text" id="logSearch" placeholder="検索（ファイル名）" />
+          </div>
+          <div id="logsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let currentTeamId = null;
+      async function fetchJSON(url) {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(await r.text());
+        return r.json();
+      }
+
+      async function refreshAuth() {
+        try {
+          const s = await fetchJSON('/api/auth-status');
+          const userOk = !!s.user?.ok; const adminOk = !!s.admin?.ok;
+          const userTitle = userOk ? `User OK / user=${s.user.user}, team=${s.user.team}` : 'User 未設定';
+          const adminTitle = adminOk ? `Admin OK / user=${s.admin.user}, team=${s.admin.team}` : 'Admin 未設定';
+          currentTeamId = (s.user?.team_id) || (s.admin?.team_id) || null;
+          const chips = `
+            <span class="chip small ${userOk ? 'ok' : 'err'}" title="${userTitle}">${userOk ? 'User OK' : 'User 未'}</span>
+            <span class="chip small ${adminOk ? 'ok' : 'err'}" title="${adminTitle}">${adminOk ? 'Admin OK' : 'Admin 未'}</span>
+          `;
+          document.getElementById('authChips').innerHTML = chips;
+        } catch (e) {
+          document.getElementById('authChips').textContent = 'トークン確認エラー';
+        }
+      }
+
+      function getSelectedTypes() {
+        const pub = document.getElementById('typePublic')?.checked;
+        const pri = document.getElementById('typePrivate')?.checked;
+        let list = [];
+        if (pub) list.push('public_channel');
+        if (pri) list.push('private_channel');
+        if (!list.length) list = ['public_channel','private_channel'];
+        return list.join(',');
+      }
+
+      document.getElementById('btnExport').addEventListener('click', () => {
+        const types = getSelectedTypes();
+        const includeArchived = document.getElementById('includeArchived').checked;
+        const q = new URLSearchParams({ types, include_archived: includeArchived ? 'true' : 'false' }).toString();
+        location.href = `/api/channels/export?${q}`;
+      });
+
+      document.getElementById('btnExportPreview').addEventListener('click', async () => {
+        const types = getSelectedTypes();
+        const includeArchived = document.getElementById('includeArchived').checked;
+        const q = new URLSearchParams({ types, include_archived: includeArchived ? 'true' : 'false' }).toString();
+        showLoading('exportPreview', '一覧を取得中…');
+        const r = await fetch(`/api/channels/preview?${q}`);
+        if (!r.ok) return alert(await r.text());
+        const data = await r.json();
+        renderResult(data.records || [], { title: `エクスポートプレビュー（${data.count}件）`, mode: 'export', mount: 'exportPreview' });
+      });
+
+      function getAdminFlag() {
+        return document.getElementById('adminMode').checked;
+      }
+
+      function readCSVFile(file) {
+        return new Promise((resolve, reject) => {
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (res) => resolve(res.data),
+            error: (err) => reject(err)
+          });
+        });
+      }
+
+      async function postRows(url, rows) {
+        const r = await fetch(url + `?admin=${getAdminFlag()}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rows })
+        });
+        if (!r.ok) throw new Error(await r.text());
+        return r.json();
+      }
+
+      async function handlePreview() {
+        const file = document.getElementById('csvFile').files[0];
+        if (!file) return alert('CSVファイルを選択してください');
+        showLoading('result', 'プレビューを作成中…');
+        const rows = await readCSVFile(file);
+        const res = await postRows('/api/rename/dry-run', rows);
+        renderResult(res.plan || res.results || [], { title: 'プレビュー結果' });
+      }
+
+      async function handleApply() {
+        const file = document.getElementById('csvFile').files[0];
+        if (!file) return alert('CSVファイルを選択してください');
+        if (!document.getElementById('finalConfirm').checked) {
+          return alert('本番反映には「最終確認しました」にチェックが必要です。');
+        }
+        const rows = await readCSVFile(file);
+        const res = await postRows('/api/rename/apply', rows);
+        renderResult(res.results || [], { title: '適用結果', mode: 'apply' });
+        if (res.logs) {
+          const div = document.createElement('div');
+          div.textContent = `ログ: ${res.logs.logPath} / ${res.logs.jsonlPath}`;
+          document.getElementById('result').prepend(div);
+        }
+      }
+
+      function renderResult(items, opts = {}) {
+        const mountId = opts.mount || 'result';
+        const resultEl = document.getElementById(mountId);
+        if (!items.length) { resultEl.textContent = '結果なし'; return; }
+        const title = opts.title || '結果';
+        const mode = opts.mode || 'preview';
+        // 列定義（存在する列のみ表示）
+        const jpMap = {
+          channel_id: 'チャンネルID',
+          channel_link: 'チャンネルリンク',
+          current_name: '現在名',
+          requested_name: '希望名',
+          normalized_name: '正規化後',
+          status: 'ステータス',
+          reason: '理由',
+          notes: 'メモ',
+          NOTE: 'メモ',
+          channel_type: '種別',
+          connect: 'コネクト',
+          archived: 'アーカイブ',
+          from: '変更前',
+          to: '変更後',
+          api_result: 'API結果',
+          error: 'エラー',
+          ts: '時刻'
+        };
+        const prefCols = mode === 'apply'
+          ? ['channel_id','from','to','status','error','api_result','notes']
+          : mode === 'export'
+            ? ['channel_id','channel_link','current_name','channel_type','connect','archived']
+            : ['channel_id','current_name','requested_name','normalized_name','status','reason','notes'];
+        const sample = items[0];
+        const dynamicExtras = Object.keys(sample).filter(k => !prefCols.includes(k));
+        const cols = [...prefCols.filter(k => k in sample), ...dynamicExtras];
+
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        const thr = document.createElement('tr');
+        cols.forEach(h => { const th = document.createElement('th'); th.textContent = jpMap[h] || h; thr.appendChild(th); });
+        thead.appendChild(thr); table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        items.forEach(row => {
+          const tr = document.createElement('tr');
+          if (mode === 'preview' && (row.archived === 'archived' || row.archived === true)) {
+            tr.classList.add('archived-row');
+          }
+          cols.forEach(h => {
+            const td = document.createElement('td');
+            let v = row[h];
+            if (h === 'ts' && v) {
+              try { v = new Date(v).toLocaleString(); } catch {}
+            }
+            if (h === 'channel_id' && currentTeamId && v) {
+              const a = document.createElement('a');
+              a.href = `slack://channel?team=${encodeURIComponent(currentTeamId)}&id=${encodeURIComponent(String(v))}`;
+              a.textContent = v;
+              a.target = '_blank'; a.rel = 'noopener noreferrer';
+              td.appendChild(a);
+            } else if (h === 'channel_link' && v) {
+              // Prefer Slack app deep link if team_id is available
+              const href = (currentTeamId && row.channel_id)
+                ? `slack://channel?team=${encodeURIComponent(currentTeamId)}&id=${encodeURIComponent(String(row.channel_id))}`
+                : String(v);
+              const a = document.createElement('a');
+              a.href = href;
+              a.textContent = '開く';
+              a.title = href;
+              a.target = '_blank'; a.rel = 'noopener noreferrer';
+              td.appendChild(a);
+            } else {
+              td.textContent = v;
+            }
+            td.classList.add('nowrap');
+            if (v != null) td.title = String(v);
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        resultEl.innerHTML = '';
+        const h = document.createElement('div');
+        h.textContent = title;
+        h.style.marginTop = '12px';
+        h.style.fontWeight = '600';
+        const controls = document.createElement('div');
+        controls.className = 'controls';
+        controls.style.margin = '6px 0 0 0';
+
+        // Search box
+        const search = document.createElement('input');
+        search.type = 'text';
+        search.placeholder = '検索';
+        search.style.minWidth = '160px';
+        controls.appendChild(search);
+
+        // Filters (if columns exist)
+        let selArchived, selType, selSort, selDir;
+        if (cols.includes('archived')) {
+          const wrapA = document.createElement('span'); wrapA.className = 'select-wrap';
+          selArchived = document.createElement('select'); selArchived.className = 'select';
+          selArchived.innerHTML = '<option value="all">すべて</option><option value="active">アクティブ</option><option value="archived">アーカイブ</option>';
+          wrapA.appendChild(selArchived); controls.appendChild(wrapA);
+        }
+        if (cols.includes('channel_type')) {
+          const wrapT = document.createElement('span'); wrapT.className = 'select-wrap';
+          selType = document.createElement('select'); selType.className = 'select';
+          selType.innerHTML = '<option value="all">全タイプ</option><option value="public">公開</option><option value="private">非公開</option>';
+          wrapT.appendChild(selType); controls.appendChild(wrapT);
+        }
+        // Sort
+        const wrapS = document.createElement('span'); wrapS.className = 'select-wrap';
+        selSort = document.createElement('select'); selSort.className = 'select';
+        selSort.innerHTML = cols.map(c => `<option value="${c}">${jpMap[c] || c}</option>`).join('');
+        wrapS.appendChild(selSort); controls.appendChild(wrapS);
+        const wrapD = document.createElement('span'); wrapD.className = 'select-wrap';
+        selDir = document.createElement('select'); selDir.className = 'select';
+        selDir.innerHTML = '<option value="asc">昇順</option><option value="desc">降順</option>';
+        wrapD.appendChild(selDir); controls.appendChild(wrapD);
+
+        const wrap = document.createElement('div');
+        wrap.className = 'table-wrap';
+        wrap.appendChild(table);
+        resultEl.appendChild(h);
+        resultEl.appendChild(controls);
+        resultEl.appendChild(wrap);
+
+        const base = items.slice();
+        function cmp(a, b) {
+          const key = selSort.value;
+          let va = a[key]; let vb = b[key];
+          if (typeof va === 'string') va = va.toLowerCase();
+          if (typeof vb === 'string') vb = vb.toLowerCase();
+          if (va == null && vb == null) return 0;
+          if (va == null) return -1;
+          if (vb == null) return 1;
+          if (va < vb) return -1;
+          if (va > vb) return 1;
+          return 0;
+        }
+        function apply() {
+          let rows = base;
+          const q = (search.value || '').toLowerCase();
+          if (q) {
+            rows = rows.filter(r => Object.values(r).some(v => (v != null && String(v).toLowerCase().includes(q))));
+          }
+          if (selArchived) {
+            const va = selArchived.value;
+            if (va !== 'all') rows = rows.filter(r => String(r.archived || '').toLowerCase() === va);
+          }
+          if (selType) {
+            const vt = selType.value;
+            if (vt !== 'all') rows = rows.filter(r => String(r.channel_type || '').toLowerCase() === vt);
+          }
+          rows = rows.slice().sort(cmp);
+          if (selDir.value === 'desc') rows.reverse();
+          // Rebuild tbody
+          tbody.innerHTML = '';
+          rows.forEach(row => {
+            const tr = document.createElement('tr');
+            if (mode === 'preview' && (row.archived === 'archived' || row.archived === true)) tr.classList.add('archived-row');
+            cols.forEach(h => {
+              const td = document.createElement('td');
+              let v = row[h];
+              if (h === 'ts' && v) { try { v = new Date(v).toLocaleString(); } catch {} }
+              td.textContent = v;
+              td.classList.add('nowrap');
+              if (v != null) td.title = String(v);
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+        }
+        ;['input','change','keyup'].forEach(ev => search.addEventListener(ev, apply));
+        if (selArchived) selArchived.addEventListener('change', apply);
+        if (selType) selType.addEventListener('change', apply);
+        selSort.addEventListener('change', apply);
+        selDir.addEventListener('change', apply);
+        apply();
+      }
+
+      document.getElementById('btnPreview').addEventListener('click', () => handlePreview().catch(e => alert(e.message)));
+      document.getElementById('btnApply').addEventListener('click', () => handleApply().catch(e => alert(e.message)));
+      const btnSaveTokens = document.getElementById('btnSaveTokens');
+      const btnClearTokens = document.getElementById('btnClearTokens');
+      if (btnSaveTokens) btnSaveTokens.addEventListener('click', async () => {
+        const userToken = (document.getElementById('tokUser').value || '').trim();
+        const adminToken = (document.getElementById('tokAdmin').value || '').trim();
+        if (!userToken && !adminToken) return alert('保存するトークンを入力してください');
+        const r = await fetch('/api/tokens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userToken, adminToken }) });
+        const el = document.getElementById('tokenMsg');
+        if (!r.ok) { el.textContent = '保存に失敗しました: ' + (await r.text()); return; }
+        el.textContent = '保存しました。画面を更新すると反映されます。';
+        refreshAuth();
+      });
+      if (btnClearTokens) btnClearTokens.addEventListener('click', async () => {
+        if (!confirm('ローカル保存されたトークンを削除します。よろしいですか？')) return;
+        const r = await fetch('/api/tokens', { method: 'DELETE' });
+        const el = document.getElementById('tokenMsg');
+        if (!r.ok) { el.textContent = '削除に失敗しました: ' + (await r.text()); return; }
+        el.textContent = '削除しました。';
+        refreshAuth();
+      });
+
+      refreshAuth();
+
+      // Theme toggle (persist)
+      const themeToggle = document.getElementById('themeToggle');
+      try {
+        const saved = localStorage.getItem('theme:dark') === 'true';
+        themeToggle.checked = saved;
+        document.body.dataset.dark = saved ? '1' : '';
+      } catch {}
+      themeToggle.addEventListener('change', () => {
+        const v = themeToggle.checked;
+        document.body.dataset.dark = v ? '1' : '';
+        try { localStorage.setItem('theme:dark', String(v)); } catch {}
+      });
+
+      // 最終確認チェックで有効化
+      const finalConfirm = document.getElementById('finalConfirm');
+      const btnApply = document.getElementById('btnApply');
+      finalConfirm.addEventListener('change', () => {
+        btnApply.disabled = !finalConfirm.checked;
+      });
+
+      // Revert last batch
+      let lastBatchId = null;
+      async function handleApply() {
+        const file = document.getElementById('csvFile').files[0];
+        if (!file) return alert('CSVファイルを選択してください');
+        if (!document.getElementById('finalConfirm').checked) {
+          return alert('本番反映には「最終確認しました」にチェックが必要です。');
+        }
+        const rows = await readCSVFile(file);
+        const res = await postRows('/api/rename/apply', rows);
+        lastBatchId = res.batchId || null;
+        renderResult(res.results || [], { title: '適用結果', mode: 'apply' });
+        if (res.logs) {
+          const div = document.createElement('div');
+          div.textContent = `ログ: ${res.logs.logPath} / ${res.logs.jsonlPath}`;
+          document.getElementById('result').prepend(div);
+        }
+        if (lastBatchId) {
+          const btn = document.createElement('button');
+          btn.textContent = '変更前に戻す';
+          btn.className = 'btn secondary';
+          btn.style.marginTop = '8px';
+          btn.onclick = async () => {
+            if (!confirm('直前の一括更新を元に戻します。よろしいですか？')) return;
+            const r = await fetch(`/api/rename/revert?batch_id=${encodeURIComponent(lastBatchId)}`, { method: 'POST' });
+            if (!r.ok) return alert(await r.text());
+            const data = await r.json();
+            renderResult(data.results || [], { title: '元に戻した結果', mode: 'apply' });
+          };
+          document.getElementById('result').appendChild(btn);
+        }
+      }
+
+      function showLoading(mountId, message) {
+        const el = document.getElementById(mountId);
+        el.innerHTML = `<div class="loading"><span class="spinner"></span><span>${message}</span></div>`;
+      }
+
+      async function viewLogFile(file) {
+        const name = file.name;
+        showLoading('logsList', `${name} を読み込み中…`);
+        const r2 = await fetch(`/api/logs/view?name=${encodeURIComponent(name)}`);
+        if (!r2.ok) { document.getElementById('logsList').textContent = await r2.text(); return; }
+        const text = await r2.text();
+        const mount = document.getElementById('logsList');
+        mount.innerHTML = '';
+
+        const header = document.createElement('div');
+        header.className = 'controls';
+        const back = document.createElement('button'); back.className='btn secondary'; back.textContent='一覧へ戻る'; back.onclick = () => loadLogs();
+        const dl = document.createElement('button'); dl.className='btn secondary'; dl.textContent='ダウンロード'; dl.onclick = () => { location.href = `/api/logs/get?name=${encodeURIComponent(name)}`; };
+        const meta = document.createElement('div'); meta.className='note'; meta.textContent = `${name} / ${(file.size/1024).toFixed(1)} KB / ${new Date(file.mtime).toLocaleString()}`;
+        header.appendChild(back); header.appendChild(dl); header.appendChild(meta);
+        mount.appendChild(header);
+
+        if (name.endsWith('.jsonl')) {
+          const lines = text.split(/\r?\n/).filter(Boolean).slice(0, 2000);
+          const records = [];
+          for (const ln of lines) { try { records.push(JSON.parse(ln)); } catch {} }
+          renderLogRecords(records, { title: 'JSONLプレビュー（先頭2000行）' });
+        } else if (name.endsWith('.json')) {
+          try {
+            const obj = JSON.parse(text);
+            const info = document.createElement('div'); info.className='note'; info.textContent = `batchId=${obj.batchId || obj.revertBatchId || 'n/a'} / items=${(obj.items||[]).length}`;
+            mount.appendChild(info);
+            if (Array.isArray(obj.items)) {
+              renderLogRecords(obj.items, { title: '項目一覧' });
+            } else {
+              const pre = document.createElement('pre'); pre.style.maxHeight='420px'; pre.style.overflow='auto'; pre.textContent = text.slice(0, 20000);
+              mount.appendChild(pre);
+            }
+          } catch {
+            const pre = document.createElement('pre'); pre.style.maxHeight='420px'; pre.style.overflow='auto'; pre.textContent = text.slice(0, 20000);
+            mount.appendChild(pre);
+          }
+        } else if (name.endsWith('.csv')) {
+          const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+          const rows = parsed.data || [];
+          renderLogRecords(rows, { title: `CSVプレビュー（${rows.length}行）` });
+        } else {
+          const pre = document.createElement('pre'); pre.style.maxHeight='420px'; pre.style.overflow='auto'; pre.textContent = text.slice(0, 20000);
+          mount.appendChild(pre);
+        }
+      }
+
+      function renderLogRecords(rows, opts = {}) {
+        const mount = document.getElementById('logsList');
+        const title = document.createElement('div'); title.style.margin='8px 0'; title.style.fontWeight='600'; title.textContent = opts.title || 'プレビュー';
+        mount.appendChild(title);
+        if (!rows || !rows.length) { const div=document.createElement('div'); div.className='note'; div.textContent='データなし'; mount.appendChild(div); return; }
+
+        const cols = Array.from(new Set(rows.flatMap(r => Object.keys(r||{}))));
+        const hasStatus = cols.includes('status');
+        // Summary chips
+        if (hasStatus) {
+          const summary = rows.reduce((acc, r) => { const k = r.status || 'unknown'; acc[k] = (acc[k]||0)+1; return acc; }, {});
+          const bar = document.createElement('div'); bar.className='controls';
+          Object.entries(summary).forEach(([k,v]) => { const span=document.createElement('span'); span.className='chip small'; span.textContent=`${k}:${v}`; bar.appendChild(span); });
+          mount.appendChild(bar);
+        }
+
+        // Controls
+        const controls = document.createElement('div'); controls.className='controls';
+        const search = document.createElement('input'); search.type='text'; search.placeholder='検索'; search.style.minWidth='160px'; controls.appendChild(search);
+        const selSort = document.createElement('select'); selSort.className='select'; selSort.innerHTML = cols.map(c => `<option value="${c}">${c}</option>`).join(''); controls.appendChild(selSort);
+        const selDir = document.createElement('select'); selDir.className='select'; selDir.innerHTML='<option value="asc">昇順</option><option value="desc">降順</option>'; controls.appendChild(selDir);
+        let selStatus = null; if (hasStatus) { selStatus = document.createElement('select'); selStatus.className='select'; selStatus.innerHTML='<option value="all">全ステータス</option><option>will_rename</option><option>noop</option><option>invalid</option><option>skipped</option><option>renamed</option><option>reverted</option><option>error</option>'; controls.appendChild(selStatus); }
+        mount.appendChild(controls);
+
+        const table = document.createElement('table');
+        const thead = document.createElement('thead'); const thr=document.createElement('tr'); cols.forEach(h => { const th=document.createElement('th'); th.textContent=h; thr.appendChild(th); }); thead.appendChild(thr); table.appendChild(thead);
+        const tbody = document.createElement('tbody'); table.appendChild(tbody);
+        const wrap = document.createElement('div'); wrap.className='table-wrap'; wrap.appendChild(table); mount.appendChild(wrap);
+
+        const base = rows.slice();
+        function sortCmp(a,b){ const k=selSort.value; let va=a[k], vb=b[k]; if(typeof va==='string') va=va.toLowerCase(); if(typeof vb==='string') vb=vb.toLowerCase(); if(va==null&&vb==null) return 0; if(va==null) return -1; if(vb==null) return 1; if(va<vb) return -1; if(va>vb) return 1; return 0; }
+        function apply(){ let r=base; const q=(search.value||'').toLowerCase(); if(q) r=r.filter(row=>Object.values(row).some(v=>v!=null && String(v).toLowerCase().includes(q))); if(selStatus && selStatus.value!=='all') r=r.filter(row=>String(row.status||'')===selStatus.value); r=r.slice().sort(sortCmp); if(selDir.value==='desc') r.reverse(); tbody.innerHTML=''; r.forEach(row=>{ const tr=document.createElement('tr'); cols.forEach(h=>{ const td=document.createElement('td'); let v=row[h]; if(h==='ts'&&v){ try{ v=new Date(v).toLocaleString(); }catch{}} td.textContent=v; td.className='nowrap'; if(v!=null) td.title=String(v); tr.appendChild(td); }); tbody.appendChild(tr); }); }
+        ['input','change','keyup'].forEach(ev => search.addEventListener(ev, apply)); selSort.addEventListener('change', apply); selDir.addEventListener('change', apply); if(selStatus) selStatus.addEventListener('change', apply);
+        apply();
+      }
+
+      // Logs viewer
+      const btnLoadLogs = document.getElementById('btnLoadLogs');
+      if (btnLoadLogs) {
+        btnLoadLogs.addEventListener('click', () => loadLogs().catch(e => alert(e.message)));
+        document.getElementById('logKind').addEventListener('change', () => loadLogs().catch(e => alert(e.message)));
+        document.getElementById('logSearch').addEventListener('input', () => loadLogs().catch(e => alert(e.message)));
+      }
+      async function loadLogs() {
+        showLoading('logsList', 'ログ一覧を取得中…');
+        const r = await fetch('/api/logs/list');
+        if (!r.ok) { document.getElementById('logsList').textContent = await r.text(); return; }
+        const data = await r.json();
+        const kind = document.getElementById('logKind').value;
+        const q = (document.getElementById('logSearch').value || '').toLowerCase();
+        let files = data.files || [];
+        if (kind !== 'all') files = files.filter(f => f.kind === kind);
+        if (q) files = files.filter(f => f.name.toLowerCase().includes(q));
+
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>名前</th><th>種類</th><th>サイズ</th><th>更新日</th><th>操作</th></tr>';
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        files.forEach(f => {
+          const tr = document.createElement('tr');
+          const tdName = document.createElement('td'); tdName.className='nowrap'; tdName.textContent = f.name; tdName.title=f.name;
+          const tdKind = document.createElement('td'); tdKind.textContent = f.kind;
+          const tdSize = document.createElement('td'); tdSize.textContent = (f.size/1024).toFixed(1)+' KB';
+          const tdTime = document.createElement('td'); tdTime.textContent = new Date(f.mtime).toLocaleString();
+          const tdAct = document.createElement('td');
+          const btnDl = document.createElement('button'); btnDl.className='btn secondary'; btnDl.textContent = 'DL'; btnDl.onclick = () => { location.href = `/api/logs/get?name=${encodeURIComponent(f.name)}`; };
+          const btnView = document.createElement('button'); btnView.className='btn secondary'; btnView.textContent = 'プレビュー'; btnView.style.marginLeft='6px'; btnView.onclick = async () => {
+            const r2 = await fetch(`/api/logs/view?name=${encodeURIComponent(f.name)}`);
+            if (!r2.ok) return alert(await r2.text());
+            const text = await r2.text();
+            const pre = document.createElement('pre'); pre.style.maxHeight='320px'; pre.style.overflow='auto'; pre.style.whiteSpace='pre-wrap'; pre.textContent = text.slice(0, 20000);
+            const wrap = document.getElementById('logsList');
+            wrap.innerHTML = '';
+            wrap.appendChild(pre);
+          };
+          tdAct.appendChild(btnDl); tdAct.appendChild(btnView);
+          tr.appendChild(tdName); tr.appendChild(tdKind); tr.appendChild(tdSize); tr.appendChild(tdTime); tr.appendChild(tdAct);
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        const wrap = document.createElement('div'); wrap.className='table-wrap'; wrap.appendChild(table);
+        const mount = document.getElementById('logsList'); mount.innerHTML=''; mount.appendChild(wrap);
+      }
+    </script>
+  </body>
+  </html>
